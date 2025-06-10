@@ -1,0 +1,7 @@
+# Python dependencies for Xpra build
+# xxhash - Use the latest version that's available on PyPI
+xxhash>=3.0.0
+lz4>=1.0.0
+pillow>=9.0.0
+pycrypto>=2.6.1
+pyopenssl>=21.0.0

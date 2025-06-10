@@ -1,0 +1,83 @@
+# Dockerfile.centos8 - CentOS 8 build environment for xpra AppImage
+FROM centos:8
+
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+
+# Switch to CentOS 8 vault mirrors for EOL support
+RUN sed -i 's|mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/CentOS-*.repo \
+    && sed -i 's|#baseurl=|baseurl=|g' /etc/yum.repos.d/CentOS-*.repo \
+    && sed -i 's|http://mirror.centos.org|http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
+
+# Fix CentOS 8 repo URLs to use vault.centos.org and enable baseurl
+RUN sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/CentOS-*.repo \
+    && sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/CentOS-*.repo \
+    && sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/CentOS-*.repo
+
+# Enable EPEL for extra packages
+RUN dnf -y install epel-release
+
+# Install essential build tools and libraries
+RUN dnf -y update && dnf -y install \
+    git python3 python3-pip python3-setuptools python3-wheel python3-devel \
+    make gcc gcc-c++ libX11-devel libXtst-devel libXcomposite-devel libXdamage-devel \
+    libXrandr-devel libXfixes-devel libXinerama-devel libXrender-devel \
+    libXext-devel libXi-devel libXScrnSaver-devel libXv-devel libXpm-devel \
+    libjpeg-turbo-devel libpng-devel libwebp-devel \
+    opus-devel openssl-devel lz4-devel nss-devel \
+    wget fuse squashfs-tools desktop-file-utils ImageMagick ImageMagick-devel \
+    jq 
+# cmake - NOTE may be too old (CentOS 8 has cmake 3.11.4, which is quite old)
+RUN dnf -y install cmake || true
+
+# Install xxhash from source (not available in CentOS 8 repos)
+RUN cd /tmp && \
+    wget -q https://github.com/Cyan4973/xxHash/archive/refs/tags/v0.8.2.tar.gz && \
+    tar -xzf v0.8.2.tar.gz && \
+    cd xxHash-0.8.2 && \
+    make && \
+    make install && \
+    rm -rf /tmp/xxHash-0.8.2 /tmp/v0.8.2.tar.gz && \
+    ldconfig
+
+# More dependencies (which are not too old in CentOS 8)
+#RUN dnf -y install cairo-devel pango-devel gtk3-devel gdk-pixbuf2-devel \
+#    libdbusmenu-gtk3-devel libappindicator-gtk3-devel libsecret-1-devel \
+#    libvpx-devel libpulse-devel libavutil-devel libavcodec-devel \
+#    libavformat-devel libswscale-devel libavfilter-devel \
+#    && dnf clean all
+RUN dnf -y install cairo-devel pango-devel gtk3-devel gdk-pixbuf2-devel 
+
+# Set Python version variables and store in version info file
+ENV PYTHON_VERSION=3.10
+ENV PYTHON_VERSION_FILE=/var/tmp/PYTHON_VERSION_INFO
+RUN echo "PYTHON_VERSION=$PYTHON_VERSION" > $PYTHON_VERSION_FILE
+
+# Create a non-root user for building and make workspace directory writable
+# If mounted on the host, note that subdirs created in this workspace
+# will be owned by a non-existing uid on the host.
+RUN useradd -m builder
+RUN mkdir -p /workspace/xpra
+RUN chown builder /workspace/xpra
+WORKDIR /workspace/xpra
+
+# Cache busting argument - change this to invalidate cache for script copies
+ARG CACHE_BUST=1
+RUN echo "Cache busting at $(date +%s) with value: $CACHE_BUST"
+
+# Copy all scripts, archives, and requirements.txt to /var/tmp
+COPY *.sh *.zip *.tar.* requirements.txt /var/tmp/
+
+# Copy only scripts to /usr/local/bin and set executable
+RUN cp /var/tmp/*.sh /usr/local/bin/ && chmod +x /usr/local/bin/*.sh
+
+# Optionally copy xpra source archives to workspace if present
+RUN cp /var/tmp/xpra-*.zip /workspace/xpra/ 2>/dev/null || true
+RUN cp /var/tmp/xpra-*.tar.* /workspace/xpra/ 2>/dev/null || true
+
+# Pre-create the Python virtual environment at build time (idempotent)
+# TODO fix entrypoint, maybe add sudo (to install things in shell mode manually)
+USER builder
+RUN /usr/local/bin/build_env.sh || true
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
