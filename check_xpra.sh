@@ -3,25 +3,20 @@ set -e
 
 # check_xpra.sh: Test the built xpra binary and check codecs
 
-# Always source python version info
-PYTHON_VERSION_FILE="/var/tmp/PYTHON_VERSION_INFO"
-if [ -f "$PYTHON_VERSION_FILE" ]; then
-  source "$PYTHON_VERSION_FILE"
-fi
-
-VENV_DIR="/pyenv"
-WORKSPACE="${WORKSPACE:-/build}"
-APPIMAGE_OUTPUT="$WORKSPACE/xpra-latest.AppImage"
-
-# Activate virtualenv
-if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/bin/activate" ]; then
-  echo "[check_xpra] Activating Python virtualenv at $VENV_DIR"
-  source "$VENV_DIR/bin/activate"
-  echo "[check_xpra] Using Python: $(which python) ($(python --version))"
-else
-  echo "[check_xpra] ERROR: Python virtual environment not found at $VENV_DIR or activation script missing"
+# This should run in activated virtualenv, initialized by container_init.sh
+if [ -z "$VIRTUAL_ENV" ]; then
+  echo "[build_xpra] ERROR: This script must be run in an activated virtual environment."
+  echo "[build_xpra] Please source container_init.sh first to set up the environment."
   exit 1
 fi
+
+# Workspace, build directories
+BASE_DIR="/workspace/xpra"
+SRC_DIR="$BASE_DIR/src"
+APPIMAGE_DIR="$BASE_DIR/appimage"
+BUILD_DIR="$BASE_DIR/build"
+
+
 
 # Check if xpra is executable
 if ! command -v xpra >/dev/null 2>&1; then

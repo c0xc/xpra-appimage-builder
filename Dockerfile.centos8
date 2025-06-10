@@ -56,11 +56,6 @@ RUN cd /tmp && \
     rm -rf /tmp/xxHash-0.8.2 /tmp/v0.8.2.tar.gz && \
     ldconfig
 
-# Set Python version variables and store in version info file
-ENV PYTHON_VERSION=3.10
-ENV PYTHON_VERSION_FILE=/var/tmp/PYTHON_VERSION_INFO
-RUN echo "PYTHON_VERSION=$PYTHON_VERSION" > $PYTHON_VERSION_FILE
-
 # Create a non-root user for building and make workspace directory writable
 # If mounted on the host, note that subdirs created in this workspace
 # will be owned by a non-existing uid on the host.

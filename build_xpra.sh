@@ -3,16 +3,10 @@ set -e
 
 # build_xpra.sh: Build and install xpra in the prepared Python environment
 
-# Try to source python version info from possible locations
-PYTHON_VERSION_FILE="${PYTHON_VERSION_FILE:-$HOME/.python_version_info}"
-
-if [ -f "$PYTHON_VERSION_FILE" ]; then
-  source "$PYTHON_VERSION_FILE"
-  echo "[build_xpra] Using Python version info from $PYTHON_VERSION_FILE"
-  echo "[build_xpra] Python version: $PYTHON_VERSION"
-else
-  echo "[build_xpra] ERROR: Python version info file not found at $PYTHON_VERSION_FILE"
-  echo "[build_xpra] Make sure container_init.sh has been sourced before running this script"
+# This should run in activated virtualenv, initialized by container_init.sh
+if [ -z "$VIRTUAL_ENV" ]; then
+  echo "[build_xpra] ERROR: This script must be run in an activated virtual environment."
+  echo "[build_xpra] Please source container_init.sh first to set up the environment."
   exit 1
 fi
 
