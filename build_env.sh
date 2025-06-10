@@ -153,11 +153,11 @@ brew list --versions xxhash
 brew list --versions lz4
 
 # Optionally build ffmpeg and codecs from source if needed
-if [ -x /usr/local/bin/build_ffmpeg_codecs.sh ]; then
-    # echo "[build_env] Optionally building ffmpeg and codecs from source (see build_ffmpeg_codecs.sh)..."
-    # bash /usr/local/bin/build_ffmpeg_codecs.sh
-else
-    echo "[build_env] build_ffmpeg_codecs.sh not found, skipping source build of ffmpeg/codecs."
-fi
+#if [ -x /usr/local/bin/build_ffmpeg_codecs.sh ]; then
+#    # echo "[build_env] Optionally building ffmpeg and codecs from source (see build_ffmpeg_codecs.sh)..."
+#    # bash /usr/local/bin/build_ffmpeg_codecs.sh
+#else
+#    echo "[build_env] build_ffmpeg_codecs.sh not found, skipping source build of ffmpeg/codecs."
+#fi
 
 echo "[build_env] Done."

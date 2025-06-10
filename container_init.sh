@@ -1,6 +1,6 @@
 #!/bin/bash
 # Global container initialization script - source this in all entrypoints
-# Best practice: always activate venv per shell session, do not use persistent flag files
+# Activate venv here
 
 # Set up environment variables
 export VENV_DIR="$HOME/pyenv"  # Use home directory for Python environment
@@ -16,6 +16,9 @@ if [[ $- != *i* ]]; then
 else
     SILENT_MODE=false
 fi
+
+# Umask - allow group read/write permissions
+umask 0002
 
 # Optionally set up LinuxBrew if enabled (one-time, but safe to check each session)
 if [ "${USE_LINUXBREW:-false}" = "true" ] && [ -x "/usr/local/bin/setup_linuxbrew.sh" ]; then

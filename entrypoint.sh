@@ -23,11 +23,6 @@ fi
 # Activate our build environment
 source /usr/local/bin/container_init.sh
 
-# Use a fixed build directory
-#BUILD_DIR="/workspace/xpra-build"
-#echo "[xpra-build][INFO] Using build directory: $BUILD_DIR"
-#cd "$BUILD_DIR"
-
 # Run build or shell
 if [ "$USE_SHELL" = "true" ]; then
     echo "Starting interactive shell with build environment..."

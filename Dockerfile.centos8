@@ -79,6 +79,12 @@ ENV HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew"
 ENV HOMEBREW_NO_ANALYTICS=1
 ENV HOMEBREW_NO_AUTO_UPDATE=1
 ENV HOMEBREW_NO_ENV_HINTS=1
+# Fix permissions and ACLs for all existing and future files/dirs
+RUN chown -R linuxbrew:linuxbrew /home/linuxbrew/.linuxbrew && \
+    chmod -R g+rwX /home/linuxbrew/.linuxbrew && \
+    find /home/linuxbrew/.linuxbrew -type d -exec chmod g+s {} + && \
+    setfacl -R -m d:g:linuxbrew:rwx /home/linuxbrew/.linuxbrew && \
+    setfacl -R -m g:linuxbrew:rwx /home/linuxbrew/.linuxbrew
 # This should allow us to use Linuxbrew packages without having to build them
 # because we're using the default Linuxbrew prefix.
 
