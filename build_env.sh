@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+# set -e might cause silent failures (uncaught error skipping the rest of the script)
 
 # build_env.sh: Prepare Python environment for xpra build
 
@@ -112,13 +112,22 @@ echo "[build_env] Saved Python version info to $PYTHON_VERSION_FILE"
 PYTHON_INSTALL_DIR="$HOME/python3"
 VENV_DIR="$HOME/pyenv"
 
-# Optionally set up Linuxbrew for modern build tools
-#if [ -x /usr/local/bin/setup_linuxbrew.sh ]; then
-#    echo "[build_env] Setting up Linuxbrew (Homebrew for Linux) for modern build tools..."
-#    bash /usr/local/bin/setup_linuxbrew.sh
-#else
-#    echo "[build_env] [WARN] setup_linuxbrew.sh not found, skipping Homebrew setup."
-#fi
+# Set up Linuxbrew to install more dependencies
+if [ -x /usr/local/bin/setup_linuxbrew.sh ]; then
+    echo "[build_env] Setting up Linuxbrew..."
+    bash /usr/local/bin/setup_linuxbrew.sh
+else
+    echo "[build_env] [WARN] setup_linuxbrew.sh not found, skipping Homebrew setup."
+fi
+
+# Optionally build ffmpeg and codecs from source if needed
+if [ -x /usr/local/bin/build_ffmpeg_codecs.sh ]; then
+    echo "[build_env] Optionally building ffmpeg and codecs from source (see build_ffmpeg_codecs.sh)..."
+    # Uncomment the next line to enable source build (by default, Homebrew is used)
+    # bash /usr/local/bin/build_ffmpeg_codecs.sh
+else
+    echo "[build_env] build_ffmpeg_codecs.sh not found, skipping source build of ffmpeg/codecs."
+fi
 
 # Download and extract python-build-standalone
 if [ ! -d "$PYTHON_INSTALL_DIR" ]; then

@@ -90,7 +90,7 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 WORKSPACE_DIR="$TMP_WORKSPACE_ROOT/xpra-build-$TIMESTAMP"
 # Determine if we should mount the workspace
 MOUNT_WORKSPACE=${MOUNT_WORKSPACE:-0}
-PODMAN_RUN_ARGS=(--rm --security-opt label=disable)
+PODMAN_RUN_ARGS=(--security-opt label=disable)
 if [ "$MOUNT_WORKSPACE" = "1" ]; then
     echo "Creating workspace directory: $WORKSPACE_DIR"
     mkdir -p "$WORKSPACE_DIR"
@@ -108,6 +108,15 @@ elif [ "$BASE" = "centos7" ]; then
 else
     DOCKERFILE="Dockerfile.centos8"
     IMAGE="xpra-appimg-builder-centos8"
+fi
+
+# If CLEAN=1, remove the image before running
+if [ "$CLEAN" = "1" ]; then
+    echo "[run_local] CLEAN=1: Forcing image rebuild by removing $IMAGE..."
+    podman rmi -f "$IMAGE" 2>/dev/null || true
+fi
+if [ "$NO_CACHE" != "" ]; then
+    PODDMAN_RUN_ARGS+=( "--rm" )
 fi
 
 # Build the image (partially prepared for shell mode), run it with the entrypoint script
