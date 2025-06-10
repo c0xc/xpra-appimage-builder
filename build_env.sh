@@ -127,10 +127,34 @@ else
     echo "[build_env] [WARN] setup_linuxbrew.sh not found, skipping Homebrew setup."
 fi
 
+# Install core dependencies via brew
+echo "[setup_brew] Installing dependencies via brew..."
+brew install xxhash
+brew install lz4
+
+# Install newer CMake version (slow)
+if ! command -v cmake >/dev/null 2>&1; then
+    echo "[setup_brew] Installing cmake..."
+    brew install cmake
+else
+    echo "[setup_brew] CMake already installed, skipping..."
+fi
+
+# Modern multimedia codecs and tools (for Xpra, video, audio, etc)
+# These are too old or missing in CentOS 8 repos, so we use Homebrew.
+# -----------------------------------------------------------------------------
+echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
+brew install ffmpeg libvpx webp
+brew install opus x264 #x265
+
+# Print installed versions
+echo "[setup_brew] Installed package versions:"
+brew list --versions xxhash
+brew list --versions lz4
+
 # Optionally build ffmpeg and codecs from source if needed
 if [ -x /usr/local/bin/build_ffmpeg_codecs.sh ]; then
-    echo "[build_env] Optionally building ffmpeg and codecs from source (see build_ffmpeg_codecs.sh)..."
-    # Uncomment the next line to enable source build (by default, Homebrew is used)
+    # echo "[build_env] Optionally building ffmpeg and codecs from source (see build_ffmpeg_codecs.sh)..."
     # bash /usr/local/bin/build_ffmpeg_codecs.sh
 else
     echo "[build_env] build_ffmpeg_codecs.sh not found, skipping source build of ffmpeg/codecs."

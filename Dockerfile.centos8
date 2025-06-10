@@ -56,6 +56,9 @@ RUN cd /tmp && \
     rm -rf /tmp/xxHash-0.8.2 /tmp/v0.8.2.tar.gz && \
     ldconfig
 
+# Set umask globally for all users (group-writable files/dirs)
+RUN echo 'umask 0002' >> /etc/profile.d/umask.sh && chmod +x /etc/profile.d/umask.sh
+
 # Create a non-root user for building and make workspace directory writable
 # If mounted on the host, note that subdirs created in this workspace
 # will be owned by a non-existing uid on the host.
@@ -63,6 +66,21 @@ RUN useradd -m builder
 RUN mkdir -p /workspace/xpra
 RUN chown builder /workspace/xpra
 WORKDIR /workspace/xpra
+
+# Create user for Linuxbrew - AFTER build user (which should get the first uid)
+RUN useradd -m linuxbrew
+RUN usermod -aG linuxbrew builder && chmod -R g+rwX /home/linuxbrew/
+# Install Linuxbrew
+RUN su - linuxbrew -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}"
+ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+ENV HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar"
+ENV HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew"
+ENV HOMEBREW_NO_ANALYTICS=1
+ENV HOMEBREW_NO_AUTO_UPDATE=1
+ENV HOMEBREW_NO_ENV_HINTS=1
+# This should allow us to use Linuxbrew packages without having to build them
+# because we're using the default Linuxbrew prefix.
 
 # Cache busting argument - change this to invalidate cache for script copies
 ARG CACHE_BUST=1

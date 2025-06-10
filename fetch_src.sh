@@ -11,15 +11,17 @@ REPO_BRANCH="${REPO_BRANCH:-master}"
 cd "$BASE_DIR"
 mkdir -p "$SRC_DIR"
 
-# Check if we have an archive to extract
-if ls xpra-*.zip xpra-*.tar.* 1>/dev/null 2>&1; then
-    archive=$(ls xpra-*.zip xpra-*.tar.* | head -n1)
+# Prefer zip archive if present, else tar, else clone
+echo "[fetch_src] Looking for archives in $(pwd):"
+ls -l
+if ls xpra-*.zip 1>/dev/null 2>&1; then
+    archive=$(ls xpra-*.zip | head -n1)
     echo "[fetch_src] Extracting $archive to $SRC_DIR"
-    if [[ "$archive" == *.zip ]]; then
-        unzip "$archive" -d "$SRC_DIR"
-    else
-        tar xf "$archive" -C "$SRC_DIR" --strip-components=1
-    fi
+    unzip "$archive" -d "$SRC_DIR"
+elif ls xpra-*.tar.* 1>/dev/null 2>&1; then
+    archive=$(ls xpra-*.tar.* | head -n1)
+    echo "[fetch_src] Extracting $archive to $SRC_DIR"
+    tar xf "$archive" -C "$SRC_DIR" --strip-components=1
 else
     echo "[fetch_src] Cloning $REPO_URL branch $REPO_BRANCH to $SRC_DIR"
     git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$SRC_DIR"

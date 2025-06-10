@@ -4,9 +4,28 @@ set -e
 
 echo "[setup_brew] Installing LinuxBrew package manager..."
 
-# Configuration
+# Linuxbrew location
 BREW_DIR="$HOME/.linuxbrew"
 BREW_REPO="https://github.com/Homebrew/brew"
+# Pick up system-wide Homebrew if already installed
+GLOBAL_BREW_DIR="/home/linuxbrew/.linuxbrew"
+GLOBAL_BREW="$GLOBAL_BREW_DIR/bin/brew"
+if [ -x "$GLOBAL_BREW" ]; then
+    # Found it, activate it
+    echo "[setup_brew] System-wide Homebrew found at $GLOBAL_BREW, using it."
+    export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
+    export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+    export HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar"
+    export HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew"
+    export HOMEBREW_NO_ANALYTICS=1
+    export HOMEBREW_NO_AUTO_UPDATE=1
+    export HOMEBREW_NO_ENV_HINTS=1
+    # Optionally symlink to user bin for convenience
+    mkdir -p "$HOME/.local/bin"
+    #ln -sf "$GLOBAL_BREW" "$HOME/.local/bin/brew"
+    ln -s "$GLOBAL_BREW_DIR" "$HOME/.linuxbrew" # for convenience
+    exit 0
+fi
 
 # Check if we already have Homebrew installed
 if [ -x "$BREW_DIR/bin/brew" ]; then
@@ -16,6 +35,7 @@ if [ -x "$BREW_DIR/bin/brew" ]; then
     exit 0
 fi
 
+# Download
 echo "[setup_brew] Cloning LinuxBrew repository..."
 git clone --depth=1 $BREW_REPO $BREW_DIR
 
@@ -35,6 +55,8 @@ export INFOPATH="$BREW_DIR/share/info:\${INFOPATH:-}"
 export HOMEBREW_NO_ANALYTICS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_NO_ENV_HINTS=1
+export BREW_LD_PATH="$BREW_DIR/lib"
+export LD_LIBRARY_PATH="\$BREW_LD_PATH\${LD_LIBRARY_PATH:+:}\$LD_LIBRARY_PATH"
 EOF
 fi
 
@@ -48,39 +70,8 @@ echo "[setup_brew] LinuxBrew installation complete"
 # Source the brew environment
 source "$HOME/.brew_profile" 2>/dev/null || true
 
-# Install core dependencies via brew
-echo "[setup_brew] Installing dependencies via brew..."
-brew install xxhash
-brew install lz4
-
-# Install newer CMake version (slow)
-if ! command -v cmake >/dev/null 2>&1; then
-    echo "[setup_brew] Installing cmake..."
-    brew install cmake
-else
-    echo "[setup_brew] CMake already installed, skipping..."
-fi
-
-# Modern multimedia codecs and tools (for Xpra, video, audio, etc)
-# These are too old or missing in CentOS 8 repos, so we use Homebrew.
-# -----------------------------------------------------------------------------
-echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
-brew install ffmpeg libvpx webp
-brew install opus x264 #x265
-
-# Print installed versions
-echo "[setup_brew] Installed package versions:"
-brew list --versions xxhash
-brew list --versions lz4
-
-echo "[setup_brew] Setting up library path for brew packages"
-# Add brew libs to LD_LIBRARY_PATH if not already done
-if ! grep -q "BREW_LD_PATH" "$HOME/.brew_profile" 2>/dev/null; then
-    cat >> "$HOME/.brew_profile" << EOF
-# Add brew libraries to library path
-export BREW_LD_PATH="$BREW_DIR/lib"
-export LD_LIBRARY_PATH="\$BREW_LD_PATH\${LD_LIBRARY_PATH:+:}\$LD_LIBRARY_PATH"
-EOF
-fi
+# After local install, also symlink to user bin for convenience
+mkdir -p "$HOME/.local/bin"
+ln -sf "$BREW_DIR/bin/brew" "$HOME/.local/bin/brew"
 
 echo "[setup_brew] LinuxBrew setup complete"
