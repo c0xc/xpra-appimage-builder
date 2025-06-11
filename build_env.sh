@@ -140,12 +140,21 @@ else
     echo "[setup_brew] CMake already installed, skipping..."
 fi
 
+# Install gobject-introspection for meson build
+# ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
+# OS package gobject-introspection-devel too old or not working -> brew
+if ! pkg-config --exists girepository-2.0; then
+    echo "[setup_brew] Installing gobject-introspection..."
+    brew install gobject-introspection
+fi
+
 # Modern multimedia codecs and tools (for Xpra, video, audio, etc)
 # These are too old or missing in CentOS 8 repos, so we use Homebrew.
 # -----------------------------------------------------------------------------
 echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
 brew install ffmpeg libvpx webp
 brew install opus x264 #x265
+brew install gobject-introspection
 
 # Print installed versions
 echo "[setup_brew] Installed package versions:"
