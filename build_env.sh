@@ -155,6 +155,7 @@ echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
 brew install ffmpeg libvpx webp
 brew install opus x264 #x265
 brew install gobject-introspection
+brew install libxkbfile libxdmcp
 
 # Print installed versions
 echo "[setup_brew] Installed package versions:"

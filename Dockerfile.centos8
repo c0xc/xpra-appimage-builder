@@ -46,6 +46,29 @@ RUN dnf -y install \
     gobject-introspection-devel \
     perl-ExtUtils-Command perl-ExtUtils-MakeMaker
 
+# X11 development libraries (for xpra build and runtime)
+RUN dnf -y install \
+    libX11-devel \
+    libXtst-devel \
+    libXcomposite-devel \
+    libXdamage-devel \
+    libXrandr-devel \
+    libXfixes-devel \
+    libXinerama-devel \
+    libXrender-devel \
+    libXext-devel \
+    libXi-devel \
+    libXScrnSaver-devel \
+    libXv-devel \
+    libXpm-devel \
+    libXcursor-devel \
+    libXau-devel \
+    libxcb-devel \
+    mesa-libGL-devel \
+    mesa-libEGL-devel \
+    mesa-libGLU-devel \
+    xorg-x11-proto-devel
+
 # Install xxhash from source (not available in CentOS 8 repos)
 RUN cd /tmp && \
     wget -q https://github.com/Cyan4973/xxHash/archive/refs/tags/v0.8.2.tar.gz && \
