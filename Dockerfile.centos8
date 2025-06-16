@@ -28,9 +28,15 @@ RUN dnf -y install \
     wget fuse squashfs-tools desktop-file-utils ImageMagick ImageMagick-devel \
     jq cmake
 
+# Install clang from repository (if missing, llvm from Linuxbrew will be used)
+#RUN dnf -y install \
+#    clang
+
 # More dependencies (which are not too old in CentOS 8)
 # These are stable, mature libraries that should be installed from the system repo.
-# If those are too old, install via linuxbrew (see build_env.sh for details)
+# Some are too old or missing, we'll use Linuxbrew (see build_env.sh for details)
+# Error: Unable to find a match: python3-cairo-devel python3-gobject-devel
+# Error: Unable to find a match: libXres-devel
 # -----------------------------------------------------------------------------
 RUN dnf -y install \
     git python3 python3-pip python3-setuptools python3-wheel python3-devel \
@@ -47,6 +53,12 @@ RUN dnf -y install \
     perl-ExtUtils-Command perl-ExtUtils-MakeMaker
 
 # X11 development libraries (for xpra build and runtime)
+# -----------------------------------------------------------------------------
+# NOTE: Some X11 protocol headers in CentOS 8 are too old for modern builds.
+# For example, fixesproto.pc from xorg-x11-proto-devel is version 5.0, but
+# xpra and other modern software require fixesproto >= 6.0.
+# For newer headers, we use Linuxbrew X11 packages
+# See USE_BREW_HEADERS_LIBS=1
 RUN dnf -y install \
     libX11-devel \
     libXtst-devel \
@@ -68,6 +80,15 @@ RUN dnf -y install \
     mesa-libEGL-devel \
     mesa-libGLU-devel \
     xorg-x11-proto-devel
+
+# -----------------------------------------------------------------------------
+# X11 protocol headers and libraries via Homebrew (Linuxbrew)
+# If USE_BREW_HEADERS_LIBS=1, install and use these exclusively for modern builds
+# -----------------------------------------------------------------------------
+# (This is handled in build_env.sh, not here, but documented for clarity)
+# Example: USE_BREW_HEADERS_LIBS=1 will trigger brew install of:
+#   xorgproto libx11 libxext libxfixes libxdamage libxrandr libxcomposite libxinerama libxrender libxi libxpm libxv libxkbfile libxcursor libxcb libxau libxdmcp libxres
+# The build scripts will set PKG_CONFIG_PATH, LDFLAGS, and CPPFLAGS accordingly.
 
 # Install xxhash from source (not available in CentOS 8 repos)
 RUN cd /tmp && \
@@ -120,6 +141,7 @@ COPY *.sh *.zip *.tar.* requirements.txt /var/tmp/
 
 # Copy only scripts to /usr/local/bin and set executable
 RUN cp /var/tmp/*.sh /usr/local/bin/ && chmod +x /usr/local/bin/*.sh
+COPY linuxdeploy-*.AppImage /workspace/xpra/
 
 # Optionally copy xpra source archives to workspace if present
 RUN cp /var/tmp/xpra-*.zip /workspace/xpra/ 2>/dev/null || true

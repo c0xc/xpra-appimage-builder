@@ -18,7 +18,7 @@ else
     exit 1
 fi
 
-# Install Python dependencies for Xpra
+# Install dependencies from pyproject.toml or requirements.txt
 if [ -f pyproject.toml ]; then
     echo "[build_prereqs] Installing dependencies from pyproject.toml using uv..."
     uv pip install -r <(uv pip compile pyproject.toml)
@@ -30,6 +30,19 @@ else
         echo "[build_prereqs] No pyproject.toml or requirements.txt found, skipping Python dependency installation."
     fi
 fi
+
+# Xpra dependencies for X11 via brew
+echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
+brew install libxres
+brew install py3cairo pygobject3
+brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+
+# Modern multimedia codecs and tools (for Xpra, video, audio, etc)
+# These are too old or missing in CentOS 8 repos, so we use Homebrew.
+echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
+brew install ffmpeg libvpx webp
+brew install opus x264 #x265
+brew install libxkbfile libxdmcp
 
 popd
 

@@ -118,6 +118,8 @@ fi
 # Install core Python tools
 echo "[build_env] Installing base Python dependencies..."
 pip install --upgrade pip setuptools wheel
+#echo "[build_env] Installing build tool for PEP 517/518 wheel builds..."
+pip install --upgrade build
 
 # Set up Linuxbrew to install more dependencies
 if [ -x /usr/local/bin/setup_linuxbrew.sh ]; then
@@ -131,6 +133,7 @@ fi
 echo "[setup_brew] Installing dependencies via brew..."
 brew install xxhash
 brew install lz4
+brew install py3cairo pygobject3
 
 # Install newer CMake version (slow)
 if ! command -v cmake >/dev/null 2>&1; then
@@ -138,6 +141,16 @@ if ! command -v cmake >/dev/null 2>&1; then
     brew install cmake
 else
     echo "[setup_brew] CMake already installed, skipping..."
+fi
+
+# Install clang with LLVM
+if ! command -v clang >/dev/null 2>&1; then
+    echo "[setup_brew] Installing clang with LLVM..."
+    brew install llvm
+    # Add LLVM to PATH
+    export PATH="/home/linuxbrew/.linuxbrew/opt/llvm/bin:$PATH"
+    export LDFLAGS="-L/home/linuxbrew/.linuxbrew/opt/llvm/lib"
+    export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/opt/llvm/include"
 fi
 
 # Install gobject-introspection for meson build
@@ -148,14 +161,8 @@ if ! pkg-config --exists girepository-2.0; then
     brew install gobject-introspection
 fi
 
-# Modern multimedia codecs and tools (for Xpra, video, audio, etc)
-# These are too old or missing in CentOS 8 repos, so we use Homebrew.
-# -----------------------------------------------------------------------------
-echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
-brew install ffmpeg libvpx webp
-brew install opus x264 #x265
-brew install gobject-introspection
-brew install libxkbfile libxdmcp
+# Install GTK3 development files
+brew install gtk+3 # for gdk-3.0.pc (GTK3 development files)
 
 # Print installed versions
 echo "[setup_brew] Installed package versions:"
