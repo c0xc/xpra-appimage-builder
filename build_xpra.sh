@@ -5,9 +5,9 @@ set -e
 
 # This should run in activated virtualenv, initialized by container_init.sh
 if [ -z "$VIRTUAL_ENV" ]; then
-  echo "[build_xpra] ERROR: This script must be run in an activated virtual environment."
-  echo "[build_xpra] Please source container_init.sh first to set up the environment."
-  exit 1
+    echo "[build_xpra] ERROR: This script must be run in an activated virtual environment."
+    echo "[build_xpra] Please source container_init.sh first to set up the environment."
+    exit 1
 fi
 
 # Workspace, build directories
@@ -77,19 +77,19 @@ mkdir -p "$APPIMAGE_DIR"
 cd "$APPIMAGE_DIR"
 
 if [ ! -f linuxdeploy-x86_64.AppImage ]; then
-  if [ -f "$BASE_DIR/linuxdeploy-x86_64.AppImage" ]; then
-    echo "[build_xpra] Found linuxdeploy-x86_64.AppImage in $BASE_DIR, copying to $APPIMAGE_DIR."
-    cp "$BASE_DIR/linuxdeploy-x86_64.AppImage" "$APPIMAGE_DIR/"
-    chmod +x "$APPIMAGE_DIR/linuxdeploy-x86_64.AppImage"
-  else
-    echo "[build_xpra] Downloading linuxdeploy-x86_64.AppImage ..."
-    wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-    if [ $? -ne 0 ]; then
-      echo "[build_xpra] ERROR: Failed to download linuxdeploy-x86_64.AppImage. Aborting." >&2
-      exit 1
+    if [ -f "$BASE_DIR/linuxdeploy-x86_64.AppImage" ]; then
+        echo "[build_xpra] Found linuxdeploy-x86_64.AppImage in $BASE_DIR, copying to $APPIMAGE_DIR."
+        cp "$BASE_DIR/linuxdeploy-x86_64.AppImage" "$APPIMAGE_DIR/"
+        chmod +x "$APPIMAGE_DIR/linuxdeploy-x86_64.AppImage"
+    else
+        echo "[build_xpra] Downloading linuxdeploy-x86_64.AppImage ..."
+        wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        if [ $? -ne 0 ]; then
+            echo "[build_xpra] ERROR: Failed to download linuxdeploy-x86_64.AppImage. Aborting." >&2
+            exit 1
+        fi
+        chmod +x linuxdeploy-x86_64.AppImage
     fi
-    chmod +x linuxdeploy-x86_64.AppImage
-  fi
 fi
 
 # Create AppDir structure
@@ -97,49 +97,49 @@ APPDIR="$APPIMAGE_DIR/AppDir"
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share"
 if [ $? -ne 0 ]; then
-  echo "[build_xpra] ERROR: Failed to create AppDir structure at $APPDIR." >&2
-  exit 1
+    echo "[build_xpra] ERROR: Failed to create AppDir structure at $APPDIR." >&2
+    exit 1
 fi
 cp -r "$SRC_DIR" "$APPDIR/usr/share/xpra"
 if [ $? -ne 0 ]; then
-  echo "[build_xpra] ERROR: Failed to copy $SRC_DIR to $APPDIR/usr/share/xpra." >&2
-  exit 1
+    echo "[build_xpra] ERROR: Failed to copy $SRC_DIR to $APPDIR/usr/share/xpra." >&2
+    exit 1
 fi
 ln -s /usr/share/xpra/scripts/xpra "$APPDIR/usr/bin/xpra"
 if [ $? -ne 0 ]; then
-  echo "[build_xpra] ERROR: Failed to create symlink for xpra script." >&2
-  exit 1
+    echo "[build_xpra] ERROR: Failed to create symlink for xpra script." >&2
+    exit 1
 fi
 
 # Copy bundled Python and venv into AppDir
 cp -a "$HOME/python3" "$APPDIR/usr/python3"
 if [ $? -ne 0 ]; then
-  echo "[build_xpra] ERROR: Failed to copy Python to AppDir." >&2
-  exit 1
+    echo "[build_xpra] ERROR: Failed to copy Python to AppDir." >&2
+    exit 1
 fi
 cp -a "$HOME/pyenv" "$APPDIR/usr/pyenv"
 if [ $? -ne 0 ]; then
-  echo "[build_xpra] ERROR: Failed to copy venv to AppDir." >&2
-  exit 1
+    echo "[build_xpra] ERROR: Failed to copy venv to AppDir." >&2
+    exit 1
 fi
 
 # If using Homebrew LLVM/Clang, bundle all Homebrew libraries into AppDir
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
-  echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Homebrew libraries into AppDir..."
-  BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
-  APPDIR_LIB="$APPDIR/usr/lib"
-  mkdir -p "$APPDIR_LIB"
-  # Copy all .so* files from Homebrew lib to AppDir lib (symlinks and real files)
-  find "$BREW_LIB" -maxdepth 1 -type f -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
-  find "$BREW_LIB" -maxdepth 1 -type l -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
-  # Optionally, copy pkgconfig and include dirs if needed for runtime
-  cp -a /home/linuxbrew/.linuxbrew/include "$APPDIR/usr/" 2>/dev/null || true
-  cp -a /home/linuxbrew/.linuxbrew/lib/pkgconfig "$APPDIR/usr/lib/" 2>/dev/null || true
-  # Symlink hack: create /home/linuxbrew/.linuxbrew/lib inside AppDir pointing to $APPDIR_LIB
-  BREW_LIB_TARGET="$APPDIR/home/linuxbrew/.linuxbrew/lib"
-  mkdir -p "$(dirname "$BREW_LIB_TARGET")"
-  ln -sf "$APPDIR_LIB" "$BREW_LIB_TARGET"
-  echo "[build_xpra] Symlinked $BREW_LIB_TARGET -> $APPDIR_LIB for RPATH compatibility."
+    echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Homebrew libraries into AppDir..."
+    BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
+    APPDIR_LIB="$APPDIR/usr/lib"
+    mkdir -p "$APPDIR_LIB"
+    # Copy all .so* files from Homebrew lib to AppDir lib (symlinks and real files)
+    find "$BREW_LIB" -maxdepth 1 -type f -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
+    find "$BREW_LIB" -maxdepth 1 -type l -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
+    # Optionally, copy pkgconfig and include dirs if needed for runtime
+    cp -a /home/linuxbrew/.linuxbrew/include "$APPDIR/usr/" 2>/dev/null || true
+    cp -a /home/linuxbrew/.linuxbrew/lib/pkgconfig "$APPDIR/usr/lib/" 2>/dev/null || true
+    # Symlink hack: create /home/linuxbrew/.linuxbrew/lib inside AppDir pointing to $APPDIR_LIB
+    BREW_LIB_TARGET="$APPDIR/home/linuxbrew/.linuxbrew/lib"
+    mkdir -p "$(dirname "$BREW_LIB_TARGET")"
+    ln -sf "$APPDIR_LIB" "$BREW_LIB_TARGET"
+    echo "[build_xpra] Symlinked $BREW_LIB_TARGET -> $APPDIR_LIB for RPATH compatibility."
 fi
 
 # Create AppRun script to launch Xpra using bundled Python and venv
@@ -170,13 +170,20 @@ convert -size 64x64 xc:lightgray "$APPDIR/xpra.png" || true
 # Build AppImage using linuxdeploy
 export APPIMAGE_EXTRACT_AND_RUN=1
 ./linuxdeploy-x86_64.AppImage --appdir "$APPDIR" \
-  -d "$APPDIR/xpra.desktop" \
-  -i "$APPDIR/xpra.png" \
-  --output appimage
+    -d "$APPDIR/xpra.desktop" \
+    -i "$APPDIR/xpra.png" \
+    --output appimage
 
-# Move AppImage to output
-mv *.AppImage "$APPIMAGE_DIR/xpra-latest.AppImage"
-echo "[build_xpra] AppImage created at $APPIMAGE_DIR/xpra-latest.AppImage"
+# Copy AppImage to output build directory
+APPIMAGE_FILE=$(ls "$APPIMAGE_DIR"/*.AppImage 2>/dev/null | head -n1)
+if [ -z "$APPIMAGE_FILE" ] || [ ! -f "$APPIMAGE_FILE" ]; then
+    echo "[build_xpra] ERROR: No AppImage file found in $APPIMAGE_DIR" >&2
+    exit 1
+fi
+export APPIMAGE_FILE
+cp "$APPIMAGE_FILE" "$BUILD_DIR/"
+chmod +x "$BUILD_DIR/$(basename "$APPIMAGE_FILE")"
+echo "[build_xpra] AppImage copied to $BUILD_DIR/$(basename "$APPIMAGE_FILE") and set executable"
 
 # Check for missing shared libraries in AppDir
 # This is a post-build diagnostic to help ensure portability
@@ -187,7 +194,7 @@ find "$APPDIR" -type f \( -name '*.so*' -o -name 'xpra' \) | while read sofile; 
 done
 echo "[build_xpra] Shared library check complete."
 if [ "$MISSING" -eq 1 ]; then
-  echo "[build_xpra] WARNING: One or more shared libraries are missing in the AppImage. See above for details." >&2
+    echo "[build_xpra] WARNING: One or more shared libraries are missing in the AppImage. See above for details." >&2
 else
-  echo "[build_xpra] All shared libraries appear to be bundled."
+    echo "[build_xpra] All shared libraries appear to be bundled."
 fi
