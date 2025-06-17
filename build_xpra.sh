@@ -85,7 +85,7 @@ if [ -z "$XPRA_EXTRA_BUILD_ARGS" ]; then
     fi
 fi
 if [ -n "$XPRA_EXTRA_BUILD_ARGS" ]; then
-    echo "[build_xpra] Using extra build arguments: $XPRA_EXTRA_BUILD_ARGS"
+    echo "[build_xpra] Using extra build arguments (XPRA_EXTRA_BUILD_ARGS): $XPRA_EXTRA_BUILD_ARGS"
 fi
 export XPRA_EXTRA_BUILD_ARGS
 python -m build --wheel --outdir "$BUILD_DIR"
