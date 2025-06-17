@@ -1,5 +1,5 @@
 #!/bin/bash
-# set -e might cause silent failures (uncaught error skipping the rest of the script)
+# not using set -e, might cause silent failures (uncaught error skipping the rest of the script)
 
 # build_env.sh: Prepare Python environment for xpra build
 

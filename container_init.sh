@@ -4,7 +4,6 @@
 
 # Set up environment variables
 export VENV_DIR="$HOME/pyenv"  # Use home directory for Python environment
-export WORKSPACE="${WORKSPACE:-/workspace}"
 
 # Ensure $HOME/.local/bin is in PATH for all scripts and shells
 export PATH="$HOME/.local/bin:$PATH:/tiefkuehlfach"

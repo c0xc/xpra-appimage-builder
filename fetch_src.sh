@@ -4,7 +4,7 @@ set -e
 # fetch_src.sh: Fetch or extract the Xpra source code into the build workspace
 
 # Workspace, build directories
-BASE_DIR="/workspace/xpra"
+BASE_DIR="/workspace"
 SRC_DIR="$BASE_DIR/src"
 REPO_URL="https://github.com/Xpra-org/xpra.git"
 REPO_BRANCH="${REPO_BRANCH:-master}"

@@ -5,18 +5,16 @@ set -e
 
 # This should run in activated virtualenv, initialized by container_init.sh
 if [ -z "$VIRTUAL_ENV" ]; then
-  echo "[build_xpra] ERROR: This script must be run in an activated virtual environment."
-  echo "[build_xpra] Please source container_init.sh first to set up the environment."
+  echo "[check_xpra] ERROR: This script must be run in an activated virtual environment."
+  echo "[check_xpra] Please source container_init.sh first to set up the environment."
   exit 1
 fi
 
 # Workspace, build directories
-BASE_DIR="/workspace/xpra"
+BASE_DIR="/workspace"
 SRC_DIR="$BASE_DIR/src"
 APPIMAGE_DIR="$BASE_DIR/appimage"
 BUILD_DIR="$BASE_DIR/build"
-
-
 
 # Check if xpra is executable
 if ! command -v xpra >/dev/null 2>&1; then

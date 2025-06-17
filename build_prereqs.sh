@@ -8,7 +8,7 @@ echo "[build_prereqs] Installing base Python dependencies..."
 pip install --upgrade pip setuptools wheel
 
 # Workspace, build directories
-BASE_DIR="/workspace/xpra"
+BASE_DIR="/workspace"
 cd "$BASE_DIR" || { echo "[build_prereqs] ERROR: Base directory $BASE_DIR does not exist."; exit 1; }
 SRC_DIR="$BASE_DIR/src"
 if [ -d "$SRC_DIR" ]; then

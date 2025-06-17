@@ -11,7 +11,7 @@ if [ -z "$VIRTUAL_ENV" ]; then
 fi
 
 # Workspace, build directories
-BASE_DIR="/workspace/xpra"
+BASE_DIR="/workspace"
 SRC_DIR="$BASE_DIR/src"
 APPIMAGE_DIR="$BASE_DIR/appimage"
 BUILD_DIR="$BASE_DIR/build"
@@ -41,12 +41,12 @@ else
 fi
 
 # Build wheel in build dir and install from there
-echo th-nvid"[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
+echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
 mkdir -p "$BUILD_DIR"
 export XPRA_EXTRA_BUILD_ARGS="--with-nvenc --with-nvidia"
 python -m build --wheel --outdir "$BUILD_DIR"
 echo "[build_xpra] Installing Xpra wheel into current Python environment ..."
-uv pip install "$BUILD_DIR"/xpra-*.whl
+pip install "$BUILD_DIR"/xpra-*.whl
 
 echo "[build_xpra] === Packaging AppImage === ________________________________________________________"
 # Download linuxdeploy if not present
@@ -54,9 +54,9 @@ mkdir -p "$APPIMAGE_DIR"
 cd "$APPIMAGE_DIR"
 
 if [ ! -f linuxdeploy-x86_64.AppImage ]; then
-  if [ -f "/workspace/xpra/linuxdeploy-x86_64.AppImage" ]; then
-    echo "[build_xpra] Found linuxdeploy-x86_64.AppImage in /workspace/xpra, copying to $APPIMAGE_DIR."
-    cp "/workspace/xpra/linuxdeploy-x86_64.AppImage" "$APPIMAGE_DIR/"
+  if [ -f "$BASE_DIR/linuxdeploy-x86_64.AppImage" ]; then
+    echo "[build_xpra] Found linuxdeploy-x86_64.AppImage in $BASE_DIR, copying to $APPIMAGE_DIR."
+    cp "$BASE_DIR/linuxdeploy-x86_64.AppImage" "$APPIMAGE_DIR/"
     chmod +x "$APPIMAGE_DIR/linuxdeploy-x86_64.AppImage"
   else
     echo "[build_xpra] Downloading linuxdeploy-x86_64.AppImage ..."

@@ -84,18 +84,25 @@ done
 # Set up workspace root (on the host) and timestamped build directory
 # The timestamp ensures unique directories for each run, useful for debugging,
 # but instead of a fixed ~/tmp, we use a configurable TMP_WORKSPACE_ROOT.
-# Inside the container, the build directory is always /build, without a timestamp.
+# Inside the container, the workspace is always mounted as /workspace.
 TMP_WORKSPACE_ROOT="${TMP_WORKSPACE_ROOT:-$HOME/tmp}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 WORKSPACE_DIR="$TMP_WORKSPACE_ROOT/xpra-build-$TIMESTAMP"
 # Determine if we should mount the workspace
 MOUNT_WORKSPACE=${MOUNT_WORKSPACE:-0}
+MOUNT_BUILD=${MOUNT_BUILD:-0}
 PODMAN_RUN_ARGS=(--security-opt label=disable)
 if [ "$MOUNT_WORKSPACE" = "1" ]; then
     echo "Creating workspace directory: $WORKSPACE_DIR"
     mkdir -p "$WORKSPACE_DIR"
-    PODMAN_RUN_ARGS+=( -v "$WORKSPACE_DIR":/workspace )
-    MOUNT_MSG="[INFO] Mounting host workspace: $WORKSPACE_DIR -> /workspace"
+    chmod o+rwx "$WORKSPACE_DIR" # allow build user to write into mounted workspace
+    PODMAN_RUN_ARGS+=( -v "$WORKSPACE_DIR":/workspace:rw,z )
+fi
+if [ "$MOUNT_BUILD" = "1" ]; then
+    echo "Creating temp directory: $WORKSPACE_DIR/build"
+    mkdir -p "$WORKSPACE_DIR/build"
+    chmod -R o+rwx "$WORKSPACE_DIR" # allow build user to write into mounted workspace
+    PODMAN_RUN_ARGS+=( -v "$WORKSPACE_DIR/build":/workspace/build )
 fi
 
 # Set Dockerfile and image based on BASE

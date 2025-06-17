@@ -105,11 +105,12 @@ RUN echo 'umask 0002' >> /etc/profile.d/umask.sh && chmod +x /etc/profile.d/umas
 
 # Create a non-root user for building and make workspace directory writable
 # If mounted on the host, note that subdirs created in this workspace
-# will be owned by a non-existing uid on the host.
+# will be owned by a non-existing uid on the host. And if mounted, the container-local dir
+# /workspace which is chowned here will be shadowed by the host's mount point (see run_local.sh).
 RUN useradd -m builder
-RUN mkdir -p /workspace/xpra
-RUN chown builder /workspace/xpra
-WORKDIR /workspace/xpra
+RUN mkdir -p /workspace
+RUN chown builder /workspace
+WORKDIR /workspace
 
 # Create user for Linuxbrew - AFTER build user (which should get the first uid)
 RUN useradd -m linuxbrew
@@ -141,11 +142,11 @@ COPY *.sh *.zip *.tar.* requirements.txt /var/tmp/
 
 # Copy only scripts to /usr/local/bin and set executable
 RUN cp /var/tmp/*.sh /usr/local/bin/ && chmod +x /usr/local/bin/*.sh
-COPY linuxdeploy-*.AppImage /workspace/xpra/
+COPY linuxdeploy-*.AppImage /workspace/
 
 # Optionally copy xpra source archives to workspace if present
-RUN cp /var/tmp/xpra-*.zip /workspace/xpra/ 2>/dev/null || true
-RUN cp /var/tmp/xpra-*.tar.* /workspace/xpra/ 2>/dev/null || true
+RUN cp /var/tmp/xpra-*.zip /workspace/ 2>/dev/null || true
+RUN cp /var/tmp/xpra-*.tar.* /workspace/ 2>/dev/null || true
 
 # Pre-create the Python virtual environment at build time (idempotent)
 # TODO fix entrypoint, maybe add sudo (to install things in shell mode manually)

@@ -2,7 +2,6 @@
 set -e
 
 echo "Container ID: $(hostname)"
-echo "Entrypoint called: $0 $@"
 
 # Check if USE_SHELL is set, default to false
 USE_SHELL="${USE_SHELL:-false}"
