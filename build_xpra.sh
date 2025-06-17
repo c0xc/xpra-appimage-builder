@@ -40,10 +40,33 @@ else
     echo "[build_xpra] Using system X11 headers and libraries (default include path)."
 fi
 
+# Check for Nvidia tools
+if [ -z "${USE_NV+x}" ]; then
+    if command -v nvcc >/dev/null 2>&1; then
+        export USE_NV=1
+    else
+        export USE_NV=0
+    fi
+fi
+XPRA_NV_BUILD_ARGS=""
+if [ "$USE_NV" = "1" ]; then
+    echo "[build_xpra] CUDA/nvcc detected: enabling NVIDIA/NVENC build options."
+    XPRA_NV_BUILD_ARGS="--with-nvenc --with-nvidia"
+fi
+
 # Build wheel in build dir and install from there
 echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
 mkdir -p "$BUILD_DIR"
-export XPRA_EXTRA_BUILD_ARGS="--with-nvenc --with-nvidia"
+if [ -z "$XPRA_EXTRA_BUILD_ARGS" ]; then
+    # Add NVENC options if available
+    if [ -n "$XPRA_NV_BUILD_ARGS" ]; then
+        XPRA_EXTRA_BUILD_ARGS="$XPRA_EXTRA_BUILD_ARGS $XPRA_NV_BUILD_ARGS"
+    fi
+fi
+if [ -n "$XPRA_EXTRA_BUILD_ARGS" ]; then
+    echo "[build_xpra] Using extra build arguments: $XPRA_EXTRA_BUILD_ARGS"
+fi
+export XPRA_EXTRA_BUILD_ARGS
 python -m build --wheel --outdir "$BUILD_DIR"
 echo "[build_xpra] Installing Xpra wheel into current Python environment ..."
 pip install "$BUILD_DIR"/xpra-*.whl

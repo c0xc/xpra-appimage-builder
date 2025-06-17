@@ -4,6 +4,9 @@ FROM centos:8
 ENV LANG en_US.UTF-8
 ENV LC_ALL en_US.UTF-8
 
+ARG XPRA_EXTRA_BUILD_ARGS=""
+ENV XPRA_EXTRA_BUILD_ARGS=${XPRA_EXTRA_BUILD_ARGS}
+
 # Switch to CentOS 8 vault mirrors for EOL support
 RUN sed -i 's|mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/CentOS-*.repo \
     && sed -i 's|#baseurl=|baseurl=|g' /etc/yum.repos.d/CentOS-*.repo \
@@ -81,6 +84,14 @@ RUN dnf -y install \
     mesa-libGLU-devel \
     xorg-x11-proto-devel
 
+# Install CUDA repository and toolkit for NVENC/NVIDIA support
+RUN dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo \
+    && dnf clean all \
+    && dnf -y install cuda-toolkit-12-4 || dnf -y install cuda-toolkit-12-3 || dnf -y install cuda-toolkit-12-2 || dnf -y install cuda-toolkit
+
+# Add CUDA to PATH only if nvcc is not already available
+RUN if ! command -v nvcc >/dev/null 2>&1; then echo 'export PATH="/usr/local/cuda/bin:$PATH"' >> /etc/profile.d/cuda.sh; fi
+
 # -----------------------------------------------------------------------------
 # X11 protocol headers and libraries via Homebrew (Linuxbrew)
 # If USE_BREW_HEADERS_LIBS=1, install and use these exclusively for modern builds
@@ -101,7 +112,7 @@ RUN cd /tmp && \
     ldconfig
 
 # Set umask globally for all users (group-writable files/dirs)
-RUN echo 'umask 0002' >> /etc/profile.d/umask.sh && chmod +x /etc/profile.d/umask.sh
+RUN echo 'umask 0000' >> /etc/profile.d/umask.sh && chmod +x /etc/profile.d/umask.sh
 
 # Create a non-root user for building and make workspace directory writable
 # If mounted on the host, note that subdirs created in this workspace
@@ -149,7 +160,6 @@ RUN cp /var/tmp/xpra-*.zip /workspace/ 2>/dev/null || true
 RUN cp /var/tmp/xpra-*.tar.* /workspace/ 2>/dev/null || true
 
 # Pre-create the Python virtual environment at build time (idempotent)
-# TODO fix entrypoint, maybe add sudo (to install things in shell mode manually)
 USER builder
 RUN /usr/local/bin/build_env.sh || true
 
