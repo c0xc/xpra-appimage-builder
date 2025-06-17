@@ -41,47 +41,95 @@ else
 fi
 
 # Build wheel in build dir and install from there
-echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
+echo th-nvid"[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
 mkdir -p "$BUILD_DIR"
+export XPRA_EXTRA_BUILD_ARGS="--with-nvenc --with-nvidia"
 python -m build --wheel --outdir "$BUILD_DIR"
 echo "[build_xpra] Installing Xpra wheel into current Python environment ..."
 uv pip install "$BUILD_DIR"/xpra-*.whl
 
 echo "[build_xpra] === Packaging AppImage === ________________________________________________________"
-# Download linuxdeploy and AppImage tools if not present
+# Download linuxdeploy if not present
 mkdir -p "$APPIMAGE_DIR"
 cd "$APPIMAGE_DIR"
 
-# Try to use pre-downloaded linuxdeploy files if present in workspace root or $APPIMAGE_DIR
-for tool in linuxdeploy-x86_64.AppImage linuxdeploy-plugin-python-x86_64.AppImage; do
-  if [ ! -f "$tool" ]; then
-    if [ -f "/workspace/xpra/$tool" ]; then
-      echo "[build_xpra] Found $tool in /workspace/xpra, copying to $APPIMAGE_DIR."
-      cp "/workspace/xpra/$tool" "$APPIMAGE_DIR/"
-      chmod +x "$APPIMAGE_DIR/$tool"
-    elif [ -f "/workspace/xpra/appimage/$tool" ]; then
-      echo "[build_xpra] Found $tool in /workspace/xpra/appimage, copying to $APPIMAGE_DIR."
-      cp "/workspace/xpra/appimage/$tool" "$APPIMAGE_DIR/"
-      chmod +x "$APPIMAGE_DIR/$tool"
-    else
-      # Download if not found locally
-      if [ "$tool" = "linuxdeploy-x86_64.AppImage" ]; then
-        echo "[build_xpra] Downloading $tool ..."
-        wget -O "$tool" https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x "$tool"
-      elif [ "$tool" = "linuxdeploy-plugin-python-x86_64.AppImage" ]; then
-        echo "[build_xpra] Downloading $tool ..."
-        wget -O "$tool" https://github.com/linuxdeploy/linuxdeploy-plugin-python/releases/download/continuous/linuxdeploy-plugin-python-x86_64.AppImage && chmod +x "$tool" || echo "[build_xpra] WARNING: $tool not found for download. Please provide it manually if needed."
-      fi
+if [ ! -f linuxdeploy-x86_64.AppImage ]; then
+  if [ -f "/workspace/xpra/linuxdeploy-x86_64.AppImage" ]; then
+    echo "[build_xpra] Found linuxdeploy-x86_64.AppImage in /workspace/xpra, copying to $APPIMAGE_DIR."
+    cp "/workspace/xpra/linuxdeploy-x86_64.AppImage" "$APPIMAGE_DIR/"
+    chmod +x "$APPIMAGE_DIR/linuxdeploy-x86_64.AppImage"
+  else
+    echo "[build_xpra] Downloading linuxdeploy-x86_64.AppImage ..."
+    wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+    if [ $? -ne 0 ]; then
+      echo "[build_xpra] ERROR: Failed to download linuxdeploy-x86_64.AppImage. Aborting." >&2
+      exit 1
     fi
+    chmod +x linuxdeploy-x86_64.AppImage
   fi
-done
+fi
 
 # Create AppDir structure
 APPDIR="$APPIMAGE_DIR/AppDir"
 rm -rf "$APPDIR"
-mkdir -p "$APPDIR/usr/bin"
+mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share"
+if [ $? -ne 0 ]; then
+  echo "[build_xpra] ERROR: Failed to create AppDir structure at $APPDIR." >&2
+  exit 1
+fi
 cp -r "$SRC_DIR" "$APPDIR/usr/share/xpra"
+if [ $? -ne 0 ]; then
+  echo "[build_xpra] ERROR: Failed to copy $SRC_DIR to $APPDIR/usr/share/xpra." >&2
+  exit 1
+fi
 ln -s /usr/share/xpra/scripts/xpra "$APPDIR/usr/bin/xpra"
+if [ $? -ne 0 ]; then
+  echo "[build_xpra] ERROR: Failed to create symlink for xpra script." >&2
+  exit 1
+fi
+
+# Copy bundled Python and venv into AppDir
+cp -a "$HOME/python3" "$APPDIR/usr/python3"
+if [ $? -ne 0 ]; then
+  echo "[build_xpra] ERROR: Failed to copy Python to AppDir." >&2
+  exit 1
+fi
+cp -a "$HOME/pyenv" "$APPDIR/usr/pyenv"
+if [ $? -ne 0 ]; then
+  echo "[build_xpra] ERROR: Failed to copy venv to AppDir." >&2
+  exit 1
+fi
+
+# If using Homebrew LLVM/Clang, bundle all Homebrew libraries into AppDir
+if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
+  echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Homebrew libraries into AppDir..."
+  BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
+  APPDIR_LIB="$APPDIR/usr/lib"
+  mkdir -p "$APPDIR_LIB"
+  # Copy all .so* files from Homebrew lib to AppDir lib (symlinks and real files)
+  find "$BREW_LIB" -maxdepth 1 -type f -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
+  find "$BREW_LIB" -maxdepth 1 -type l -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
+  # Optionally, copy pkgconfig and include dirs if needed for runtime
+  cp -a /home/linuxbrew/.linuxbrew/include "$APPDIR/usr/" 2>/dev/null || true
+  cp -a /home/linuxbrew/.linuxbrew/lib/pkgconfig "$APPDIR/usr/lib/" 2>/dev/null || true
+  # Symlink hack: create /home/linuxbrew/.linuxbrew/lib inside AppDir pointing to $APPDIR_LIB
+  BREW_LIB_TARGET="$APPDIR/home/linuxbrew/.linuxbrew/lib"
+  mkdir -p "$(dirname "$BREW_LIB_TARGET")"
+  ln -sf "$APPDIR_LIB" "$BREW_LIB_TARGET"
+  echo "[build_xpra] Symlinked $BREW_LIB_TARGET -> $APPDIR_LIB for RPATH compatibility."
+fi
+
+# Create AppRun script to launch Xpra using bundled Python and venv
+cat > "$APPDIR/AppRun" <<'EOF'
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "$0")")"
+export PYTHONHOME="$HERE/usr/python3"
+export VIRTUAL_ENV="$HERE/usr/pyenv"
+export PATH="$VIRTUAL_ENV/bin:$PYTHONHOME/bin:$PATH"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$PYTHONHOME/lib:$LD_LIBRARY_PATH"
+exec "$VIRTUAL_ENV/bin/xpra" "$@"
+EOF
+chmod +x "$APPDIR/AppRun"
 
 # Create minimal desktop file
 cat > "$APPDIR/xpra.desktop" <<EOF
@@ -96,13 +144,27 @@ EOF
 # Create minimal icon
 convert -size 64x64 xc:lightgray "$APPDIR/xpra.png" || true
 
-# Build AppImage using linuxdeploy and the official python plugin
+# Build AppImage using linuxdeploy
+export APPIMAGE_EXTRACT_AND_RUN=1
 ./linuxdeploy-x86_64.AppImage --appdir "$APPDIR" \
   -d "$APPDIR/xpra.desktop" \
   -i "$APPDIR/xpra.png" \
-  --plugin python \
   --output appimage
 
 # Move AppImage to output
 mv *.AppImage "$APPIMAGE_DIR/xpra-latest.AppImage"
 echo "[build_xpra] AppImage created at $APPIMAGE_DIR/xpra-latest.AppImage"
+
+# Check for missing shared libraries in AppDir
+# This is a post-build diagnostic to help ensure portability
+MISSING=0
+echo "[build_xpra] Checking for missing shared libraries in AppDir..."
+find "$APPDIR" -type f \( -name '*.so*' -o -name 'xpra' \) | while read sofile; do
+    ldd "$sofile" | grep 'not found' && { echo "  [MISSING] in $sofile"; MISSING=1; }
+done
+echo "[build_xpra] Shared library check complete."
+if [ "$MISSING" -eq 1 ]; then
+  echo "[build_xpra] WARNING: One or more shared libraries are missing in the AppImage. See above for details." >&2
+else
+  echo "[build_xpra] All shared libraries appear to be bundled."
+fi
