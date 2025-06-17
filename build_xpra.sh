@@ -35,6 +35,8 @@ if [ ! -f linuxdeploy-x86_64.AppImage ]; then
         chmod +x linuxdeploy-x86_64.AppImage
     fi
 fi
+# Return to source directory for build
+cd "$SRC_DIR"
 
 # Start build process
 echo "[build_xpra] === Starting Xpra build process === ___________________________________________________"
