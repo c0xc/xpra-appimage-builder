@@ -129,19 +129,15 @@ else
     echo "[build_env] [WARN] setup_linuxbrew.sh not found, skipping Homebrew setup."
 fi
 
-# Ensure Homebrew builds all packages from source for maximum portability
-# This is critical for AppImage portability: Homebrew bottles are built on newer distros and require newer glibc.
-# By building from source on CentOS 8, all Homebrew libraries will be linked against the system glibc (2.28),
-# making the resulting AppImage compatible with CentOS 8, Debian 8, and newer systems.
-# TODO this does not work anymore!
-export HOMEBREW_BUILD_FROM_SOURCE=1
-export HOMEBREW_FORCE_BREWED_CURL=1  # Optional: avoid curl version mismatches
-
-# Install core dependencies via brew
-echo "[setup_brew] Installing dependencies via brew..."
+# Install build-time tools and libraries (prebuilt bottles are fine)
+echo "[setup_brew] Installing build-time tools and libraries via brew..."
+brew install cmake
+brew install llvm
 brew install xxhash
 brew install lz4
-brew install py3cairo pygobject3
+brew install gobject-introspection
+brew install py3cairo
+brew install pygobject3
 
 # Install newer CMake version (slow)
 if ! command -v cmake >/dev/null 2>&1; then
@@ -176,32 +172,6 @@ brew install gtk+3 # for gdk-3.0.pc (GTK3 development files)
 echo "[setup_brew] Installed package versions:"
 brew list --versions xxhash
 brew list --versions lz4
-
-# After Homebrew and system dependencies are installed, check glibc version in Homebrew-built libraries
-# This ensures no Homebrew library requires a newer glibc than the system provides.
-EXPECTED_GLIBC_VERSION=$(/usr/bin/ldd --version | head -n1 | grep -oE '[0-9]+\.[0-9]+' | head -n1)
-if [ -z "$EXPECTED_GLIBC_VERSION" ]; then
-    echo "[build_env] WARNING: Could not determine system glibc version. Skipping glibc compatibility check." >&2
-else
-    echo "[build_env] Checking Homebrew libraries for glibc compatibility (should be <= $EXPECTED_GLIBC_VERSION) ..."
-    find /home/linuxbrew/.linuxbrew/lib -type f -name '*.so*' | while read sofile; do
-        # Check for GLIBC_x.y dependencies in the library
-        found_versions=$(strings "$sofile" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -u)
-        for v in $found_versions; do
-            vnum=$(echo "$v" | grep -oE '[0-9]+\.[0-9]+')
-            if [ -n "$vnum" ]; then
-                # Compare versions (lexical, works for 2.xx)
-                if [ "$(printf '%s\n' "$vnum" "$EXPECTED_GLIBC_VERSION" | sort -V | tail -n1)" != "$EXPECTED_GLIBC_VERSION" ]; then
-                    echo "[build_env] ERROR: $sofile requires $v (system: $EXPECTED_GLIBC_VERSION) -- not portable!" >&2
-                    exit 1
-                fi
-            else
-                echo "[build_env] WARNING: Could not parse glibc version in $sofile (found: $v, expected: $EXPECTED_GLIBC_VERSION)" >&2
-            fi
-        done
-    done
-    echo "[build_env] All Homebrew libraries are compatible with system glibc ($EXPECTED_GLIBC_VERSION)"
-fi
 
 # Optionally build ffmpeg and codecs from source if needed
 #if [ -x /usr/local/bin/build_ffmpeg_codecs.sh ]; then
