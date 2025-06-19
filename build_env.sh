@@ -71,9 +71,9 @@ fi
 PYTHON_BS_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_BUILD_DATE}/cpython-${PYTHON_VERSION}+${PYTHON_BUILD_DATE}-x86_64-unknown-linux-gnu-install_only.tar.gz"
 echo "[build_env] Download URL: $PYTHON_BS_URL"
 
-# Set Python installation path - use user-writable location
-PYTHON_INSTALL_DIR="$HOME/python3"
-VENV_DIR="$HOME/pyenv"
+# Set Python installation path - use system root for container portability
+PYTHON_INSTALL_DIR="/opt/python3"
+VENV_DIR="/opt/pyenv"
 
 # Download and extract python-build-standalone if not already present
 if [ ! -d "$PYTHON_INSTALL_DIR" ]; then
@@ -90,9 +90,7 @@ if [ ! -d "$PYTHON_INSTALL_DIR" ]; then
     fi
     rm /tmp/python.tar.gz
     echo "[build_env] Python installed at $PYTHON_INSTALL_DIR"
-    # Create/update symlink for python3 in $HOME/.local/bin
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$PYTHON_INSTALL_DIR/bin/python3" "$HOME/.local/bin/python3"
+    # No need to create symlink in $HOME/.local/bin anymore
 else
     echo "[build_env] Using existing Python installation at $PYTHON_INSTALL_DIR"
 fi

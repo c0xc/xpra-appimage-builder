@@ -122,6 +122,7 @@ RUN useradd -m builder
 RUN mkdir -p /workspace
 RUN chown builder /workspace
 WORKDIR /workspace
+RUN chgrp builder /opt && chmod g+w /opt
 
 # Create user for Linuxbrew - AFTER build user (which should get the first uid)
 RUN useradd -m linuxbrew

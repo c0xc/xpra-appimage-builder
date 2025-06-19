@@ -34,7 +34,6 @@ fi
 # Xpra dependencies for X11 via brew
 echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
 brew install libxres
-brew install py3cairo pygobject3
 brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
 
 # Modern multimedia codecs and tools (for Xpra, video, audio, etc)

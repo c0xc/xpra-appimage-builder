@@ -53,8 +53,6 @@ fi
 # Set search paths so that pkg-config finds Homebrew X11 headers and libraries
 if [ "$USE_BREW_HEADERS_LIBS" = "1" ]; then
     echo "[build_xpra] Homebrew LLVM/Clang detected: using Homebrew X11 headers and libraries."
-    export PKG_CONFIG_PATH="/home/linuxbrew/.linuxbrew/lib/pkgconfig:/home/linuxbrew/.linuxbrew/share/pkgconfig"
-    echo "[build_xpra] PKG_CONFIG_PATH set to Linuxbrew only: $PKG_CONFIG_PATH"
     export LDFLAGS="-L/home/linuxbrew/.linuxbrew/lib ${LDFLAGS}"
     export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/include ${CPPFLAGS}"
 else
@@ -76,24 +74,23 @@ if [ "$USE_NV" = "1" ]; then
 fi
 
 # Build wheel in build dir and install from there
-echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
 mkdir -p "$BUILD_DIR"
-if [ -z "$XPRA_EXTRA_BUILD_ARGS" ]; then
-    # Add NVENC options if available
-    if [ -n "$XPRA_NV_BUILD_ARGS" ]; then
-        XPRA_EXTRA_BUILD_ARGS="$XPRA_EXTRA_BUILD_ARGS $XPRA_NV_BUILD_ARGS"
-    fi
+WHEEL_FILE=$(ls "$BUILD_DIR"/xpra-*.whl 2>/dev/null | head -n1)
+if [ -z "$WHEEL_FILE" ] || [ ! -f "$WHEEL_FILE" ]; then
+    echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
+    python -m build --wheel --outdir "$BUILD_DIR"
+    WHEEL_FILE=$(ls "$BUILD_DIR"/xpra-*.whl 2>/dev/null | head -n1)
+else
+    echo "[build_xpra] Found existing wheel: $WHEEL_FILE, skipping build."
 fi
-if [ -n "$XPRA_EXTRA_BUILD_ARGS" ]; then
-    echo "[build_xpra] Using extra build arguments (XPRA_EXTRA_BUILD_ARGS): $XPRA_EXTRA_BUILD_ARGS"
+if [ -z "$WHEEL_FILE" ] || [ ! -f "$WHEEL_FILE" ]; then
+    echo "[build_xpra] ERROR: Xpra wheel not found after build step." >&2
+    exit 1
 fi
-export XPRA_EXTRA_BUILD_ARGS
-python -m build --wheel --outdir "$BUILD_DIR"
 echo "[build_xpra] Installing Xpra wheel into current Python environment ..."
-pip install "$BUILD_DIR"/xpra-*.whl
+pip install "$WHEEL_FILE"
 
 # Initialize AppDir structure
-# (Skip initial linuxdeploy run for pure Python/venv apps, as it does not add dependencies)
 APPDIR="$APPIMAGE_DIR/AppDir"
 export APPDIR
 rm -rf "$APPDIR"
@@ -102,9 +99,52 @@ if [ $? -ne 0 ]; then
     echo "[build_xpra] ERROR: Failed to create AppDir structure at $APPDIR." >&2
     exit 1
 fi
-# Symlink the venv's xpra binary to AppDir/usr/bin/xpra for completeness (not for dependency scan)
-ln -sf "$HOME/pyenv/bin/xpra" "$APPDIR/usr/bin/xpra"
-chmod +x "$APPDIR/usr/bin/xpra"
+
+# Copy the entire python3 directory to AppDir for a fully self-contained Python
+cp -a /opt/python3 "$APPDIR/usr/python3"
+
+# Copy the venv from /opt/pyenv
+cp -a /opt/pyenv "$APPDIR/usr/pyenv"
+
+# Patch venv/bin symlinks to avoid dead links
+VENV_BIN="$APPDIR/usr/pyenv/bin"
+if [ -d "$VENV_BIN" ]; then
+    # Fix python3 symlink to point to AppImage-internal python3 using a relative path
+    if [ -L "$VENV_BIN/python3" ]; then
+        rm "$VENV_BIN/python3"
+        ln -s ../../python3/bin/python3 "$VENV_BIN/python3"
+    fi
+    # Fix python symlink to point to python3 (relative)
+    if [ -L "$VENV_BIN/python" ]; then
+        rm "$VENV_BIN/python"
+        ln -s python3 "$VENV_BIN/python"
+    fi
+    # Fix python3.x symlink to point to python3 (relative)
+    for pyver in "$VENV_BIN"/python3.*; do
+        [ -e "$pyver" ] || continue
+        if [ -L "$pyver" ]; then
+            rm "$pyver"
+            ln -s python3 "$pyver"
+        fi
+    done
+fi
+
+# Patch shebangs in venv/bin to use /usr/bin/env python3 for portability
+find "$VENV_BIN" -type f -exec sed -i '1s|^#!.*/python3$|#!/usr/bin/env python3|' {} \;
+
+# Patch pyvenv.cfg to remove or fix absolute paths
+VENV_CFG="$APPDIR/usr/pyenv/pyvenv.cfg"
+if [ -f "$VENV_CFG" ]; then
+    sed -i 's|^home = .*|home = /usr/python3/bin|' "$VENV_CFG"
+    sed -i '/^include-system-site-packages/d' "$VENV_CFG"
+fi
+
+# Patch .pth files to remove build-time absolute paths
+find "$APPDIR/usr/pyenv/lib" -name '*.pth' -exec sed -i 's|/home/[^: ]*||g' {} \;
+
+# Symlink xpra entrypoint to /usr/bin (avoiding duplicate)
+ln -sf ../pyenv/bin/xpra "$APPDIR/usr/bin/xpra"
+chmod +x "$APPDIR/usr/pyenv/bin/xpra"
 
 # Create minimal desktop file and icon for linuxdeploy
 cat > "$APPDIR/xpra.desktop" <<EOF
@@ -117,12 +157,10 @@ Categories=Utility;
 EOF
 convert -size 64x64 xc:lightgray "$APPDIR/xpra.png" || true
 
-# Copy Xpra source, Python, venv, and Homebrew libs as before
+# Copy Xpra source and Homebrew libs as before
 echo "[build_xpra] === Hybrid AppImage Build: Step 2 ==="
 echo "[build_xpra] [AppImage] Step 2: Including Linuxbrew, Python, venv, and resources into AppDir"
 cp -r "$SRC_DIR" "$APPDIR/usr/share/xpra"
-cp -a "$HOME/python3" "$APPDIR/usr/python3"
-cp -a "$HOME/pyenv" "$APPDIR/usr/pyenv"
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Homebrew libraries into AppDir..."
     BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
@@ -142,13 +180,15 @@ fi
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
 HERE="$(dirname "$(readlink -f "$0")")"
-export PYTHONHOME="$HERE/usr/python3"
 export VIRTUAL_ENV="$HERE/usr/pyenv"
-export PATH="$VIRTUAL_ENV/bin:$PYTHONHOME/bin:$PATH"
-export LD_LIBRARY_PATH="$HERE/usr/lib:$PYTHONHOME/lib:$LD_LIBRARY_PATH"
-exec "$VIRTUAL_ENV/bin/xpra" "$@"
+export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$PATH"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/python3/lib:$LD_LIBRARY_PATH"
+exec "$HERE/usr/bin/xpra" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
+
+# Change to $APPIMAGE_DIR to ensure linuxdeploy/appimagetool output goes here
+cd "$APPIMAGE_DIR"
 
 # Run linuxdeploy to create the AppImage
 # Skip fuse (device not found)
@@ -159,10 +199,16 @@ echo "[build_xpra] [AppImage] Step 3: AppImage packaging"
     -i "$APPDIR/xpra.png" \
     --output appimage
 
-# Copy AppImage to output build directory
-APPIMAGE_FILE=$(ls "$APPIMAGE_DIR"/*.AppImage 2>/dev/null | head -n1)
+# Find the created Xpra AppImage (exclude linuxdeploy-x86_64.AppImage)
+APPIMAGE_FILE=""
+for candidate in *.AppImage; do
+    if [ -f "$candidate" ] && [[ "$candidate" != "linuxdeploy-x86_64.AppImage" ]]; then
+        APPIMAGE_FILE="$APPIMAGE_DIR/$candidate"
+        break
+    fi
+done
 if [ -z "$APPIMAGE_FILE" ] || [ ! -f "$APPIMAGE_FILE" ]; then
-    echo "[build_xpra] ERROR: No AppImage file found in $APPIMAGE_DIR" >&2
+    echo "[build_xpra] ERROR: No Xpra AppImage file found in $APPIMAGE_DIR after linuxdeploy run." >&2
     exit 1
 fi
 chmod +x "$APPIMAGE_FILE"

@@ -130,7 +130,7 @@ fi
 # Several steps: build_env, build_prereqs, build_xpra, check_xpra.
 # It activates the environment. If not in shell mode, it runs the build script.
 if [ "$USE_SHELL" = "true" ]; then
-    if ! podman image exists "$IMAGE"; then
+    if ! podman image exists "$IMAGE" || [ "$REBUILD" = "1" ]; then
         echo "Building $IMAGE from $DOCKERFILE..."
         podman build $NO_CACHE $NO_SCRIPT_CACHE -f "$DOCKERFILE" -t "$IMAGE" . || exit $?
     else
