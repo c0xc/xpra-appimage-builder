@@ -157,9 +157,7 @@ Categories=Utility;
 EOF
 convert -size 64x64 xc:lightgray "$APPDIR/xpra.png" || true
 
-# Copy Xpra source and Homebrew libs as before
-echo "[build_xpra] === Hybrid AppImage Build: Step 2 ==="
-echo "[build_xpra] [AppImage] Step 2: Including Linuxbrew, Python, venv, and resources into AppDir"
+# Copy Homebrew libs
 cp -r "$SRC_DIR" "$APPDIR/usr/share/xpra"
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Homebrew libraries into AppDir..."

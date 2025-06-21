@@ -43,6 +43,11 @@ brew install ffmpeg libvpx webp
 brew install opus x264 #x265
 brew install libxkbfile libxdmcp
 
+# GStreamer and related audio/video dependencies
+echo "[setup_brew] Installing GStreamer and audio/video dependencies via brew..."
+brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
+brew install gobject-introspection pygobject3
+
 popd
 
 echo "[build_prereqs] Done."
