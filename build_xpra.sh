@@ -1,12 +1,11 @@
 #!/bin/bash
 set -e
 
-# build_xpra.sh: Build and install xpra in the prepared Python environment
+# build_xpra.sh: Build and install Xpra
 
 # This should run in activated virtualenv, initialized by container_init.sh
 if [ -z "$VIRTUAL_ENV" ]; then
     echo "[build_xpra] ERROR: This script must be run in an activated virtual environment."
-    echo "[build_xpra] Please source container_init.sh first to set up the environment."
     exit 1
 fi
 
@@ -38,40 +37,36 @@ fi
 # Return to source directory for build
 cd "$SRC_DIR"
 
-# Start build process
-echo "[build_xpra] === Starting Xpra build process === ___________________________________________________"
+# Prepare build environment (parameters, paths)
+echo "[build_xpra] === Preparing Xpra build env params === ___________________________________________________"
 
-# Ensure pkg-config can find both system and Homebrew .pc files
-export PKG_CONFIG_PATH="/usr/lib64/pkgconfig:/usr/share/pkgconfig:/home/linuxbrew/.linuxbrew/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-
-# Detect Linuxbrew LLVM/Clang (may be newer than system version and if available, we prefer it)
-if command -v clang | grep -q '/home/linuxbrew/.linuxbrew'; then
-    export USE_BREW_HEADERS_LIBS=1
-else
-    export USE_BREW_HEADERS_LIBS=0
-fi
-# Set search paths so that pkg-config finds Homebrew X11 headers and libraries
+# Set search paths so that pkg-config finds Linuxbrew X11 headers and libraries
+: "${USE_BREW_HEADERS_LIBS:=0}" # off by default
+export USE_BREW_HEADERS_LIBS
 if [ "$USE_BREW_HEADERS_LIBS" = "1" ]; then
-    echo "[build_xpra] Homebrew LLVM/Clang detected: using Homebrew X11 headers and libraries."
+    echo "[build_xpra] USE_BREW_HEADERS_LIBS=1 - setting up env for Linuxbrew paths (CPPFLAGS, LDFLAGS, PKG_CONFIG_PATH)"
     export LDFLAGS="-L/home/linuxbrew/.linuxbrew/lib ${LDFLAGS}"
     export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/include ${CPPFLAGS}"
-else
-    echo "[build_xpra] Using system X11 headers and libraries (default include path)."
+    # Ensure pkg-config can find both system and Linuxbrew .pc files
+    export PKG_CONFIG_PATH="/usr/lib64/pkgconfig:/usr/share/pkgconfig:/home/linuxbrew/.linuxbrew/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 fi
 
-# Check for Nvidia tools
+# Check for Nvidia tools (nvcc) and set XPRA_NV_BUILD_ARGS
 if [ -z "${USE_NV+x}" ]; then
     if command -v nvcc >/dev/null 2>&1; then
         export USE_NV=1
+        echo "[build_xpra] CUDA/nvcc detected: enabling NVIDIA/NVENC build options."
     else
         export USE_NV=0
     fi
 fi
 XPRA_NV_BUILD_ARGS=""
 if [ "$USE_NV" = "1" ]; then
-    echo "[build_xpra] CUDA/nvcc detected: enabling NVIDIA/NVENC build options."
     XPRA_NV_BUILD_ARGS="--with-nvenc --with-nvidia"
 fi
+
+# Start build process
+echo "[build_xpra] === Starting Xpra build process === ___________________________________________________"
 
 # Build wheel in build dir and install from there
 mkdir -p "$BUILD_DIR"
@@ -90,7 +85,7 @@ fi
 echo "[build_xpra] Installing Xpra wheel into current Python environment ..."
 pip install "$WHEEL_FILE"
 
-# Initialize AppDir structure
+# Create blank AppDir
 APPDIR="$APPIMAGE_DIR/AppDir"
 export APPDIR
 rm -rf "$APPDIR"
@@ -103,7 +98,7 @@ fi
 # Copy the entire python3 directory to AppDir for a fully self-contained Python
 cp -a /opt/python3 "$APPDIR/usr/python3"
 
-# Copy the venv from /opt/pyenv
+# Copy venv from /opt/pyenv
 cp -a /opt/pyenv "$APPDIR/usr/pyenv"
 
 # Patch venv/bin symlinks to avoid dead links
@@ -140,7 +135,7 @@ if [ -f "$VENV_CFG" ]; then
 fi
 
 # Patch .pth files to remove build-time absolute paths
-find "$APPDIR/usr/pyenv/lib" -name '*.pth' -exec sed -i 's|/home/[^: ]*||g' {} \;
+#find "$APPDIR/usr/pyenv/lib" -name '*.pth' -exec sed -i 's|/home/[^: ]*||g' {} \;
 
 # Symlink xpra entrypoint to /usr/bin (avoiding duplicate)
 ln -sf ../pyenv/bin/xpra "$APPDIR/usr/bin/xpra"
@@ -157,21 +152,93 @@ Categories=Utility;
 EOF
 convert -size 64x64 xc:lightgray "$APPDIR/xpra.png" || true
 
-# Copy Homebrew libs
-cp -r "$SRC_DIR" "$APPDIR/usr/share/xpra"
+# TODO Gstreamer, ffmpeg, opus, vpx, webp, etc. libraries
+
+# Helper function to copy files (resolving symlinks)
+copy_dep_files() {
+    local src_dir="$1" # $BREW_LIB
+    local pattern="$2" # "*.so*", "*.typelib", "*.so"
+    local dest_dir="$3" # $APPDIR/usr/lib
+
+    mkdir -p "$dest_dir"
+    for src_file in "$src_dir"/$pattern; do
+        # Construct dest_file = source file, relative to src_dir
+        local resolved_src_file="$src_file"
+        local dest_file="$dest_dir/$(basename "$src_file")"
+        # If the source file is a symlink, resolve it to the real file
+        if [ -L "$src_file" ]; then
+            resolved_src_file=$(readlink -f "$src_file")
+            echo "[build_xpra] Resolving symlink: $src_file -> $resolved_src_file"
+        fi
+
+        # Copy the resolved file to the destination
+        if [ -f "$resolved_src_file" ]; then
+            cp -vf "$resolved_src_file" "$dest_file"
+            echo "[build_xpra] Copied: $resolved_src_file -> $dest_file"
+        elif ! [ -d "$resolved_src_file" ]; then
+            echo "[build_xpra] WARNING: Skipping non-file source: $src_file" >&2
+        fi
+    done
+}
+
+# Copy Linuxbrew libs
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
-    echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Homebrew libraries into AppDir..."
+    echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Linuxbrew libraries into AppDir..."
     BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
     APPDIR_LIB="$APPDIR/usr/lib"
     mkdir -p "$APPDIR_LIB"
-    find "$BREW_LIB" -maxdepth 1 -type f -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
-    find "$BREW_LIB" -maxdepth 1 -type l -name '*.so*' -exec cp -a {} "$APPDIR_LIB/" \;
-    cp -a /home/linuxbrew/.linuxbrew/include "$APPDIR/usr/" 2>/dev/null || true
-    cp -a /home/linuxbrew/.linuxbrew/lib/pkgconfig "$APPDIR/usr/lib/" 2>/dev/null || true
-    BREW_LIB_TARGET="$APPDIR/home/linuxbrew/.linuxbrew/lib"
-    mkdir -p "$(dirname "$BREW_LIB_TARGET")"
-    ln -sf "$APPDIR_LIB" "$BREW_LIB_TARGET"
-    echo "[build_xpra] Symlinked $BREW_LIB_TARGET -> $APPDIR_LIB for RPATH compatibility."
+
+    # --- GStreamer: Core libraries and typelibs ---
+    copy_dep_files "$BREW_LIB" "*.so*" "$APPDIR_LIB"
+    #copy_dep_files "$BREW_LIB/girepository-1.0" "Gst-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
+    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstBase-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
+    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstAudio-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
+    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstVideo-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
+    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstPbutils-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
+    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstTag-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
+    # ImportError: Typelib file for namespace 'GObject', version '2.0' not found
+    copy_dep_files "$BREW_LIB/girepository-1.0" "*.typelib" "$APPDIR_LIB/girepository-1.0"
+
+    # --- GStreamer: Minimal audio codecs (Opus, Vorbis, Ogg, Pulse/ALSA) ---
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstopus.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvorbis.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstogg.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstpulseaudio.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstalsa.so" "$APPDIR_LIB/gstreamer-1.0"
+    # Audio helpers
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstwavparse.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvolume.so" "$APPDIR_LIB/gstreamer-1.0"
+
+    # --- GStreamer: Core plugins (pipeline, conversion, etc.) ---
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstaudioconvert.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstaudioresample.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstcoreelements.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstplayback.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgsttypefindfunctions.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstapp.so" "$APPDIR_LIB/gstreamer-1.0"
+
+    # --- GStreamer: Video codecs (H264, Theora, VPX) ---
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstx264.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstopenh264.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgsttheora.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvpx.so" "$APPDIR_LIB/gstreamer-1.0"
+    # Video helpers
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstautodetect.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideotestsrc.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgsttcp.so" "$APPDIR_LIB/gstreamer-1.0"
+
+    # --- GStreamer: Parsers and helpers ---
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstaudioparsers.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideoparsersbad.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideoconvert.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideoscale.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideorate.so" "$APPDIR_LIB/gstreamer-1.0"
+
+    # Make copied files in AppDir writable (because the source files are not)
+    chmod -R u+w "$APPDIR_LIB" 2>/dev/null || true
+
+    echo "[build_xpra] Linuxbrew libraries and GStreamer components copied."
+
 fi
 
 # Overwrite AppRun script to launch Xpra using bundled Python and venv
@@ -179,8 +246,25 @@ cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
 HERE="$(dirname "$(readlink -f "$0")")"
 export VIRTUAL_ENV="$HERE/usr/pyenv"
-export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$PATH"
-export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/python3/lib:$LD_LIBRARY_PATH"
+export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$HERE/usr/bin:$PATH"
+
+# Setup library paths (include both /usr/lib and /usr/lib64 for CentOS compatibility)
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib64:$HERE/usr/python3/lib:$LD_LIBRARY_PATH"
+
+# GStreamer specific environment
+if [ -d "$HERE/usr/lib/gstreamer-1.0" ]; then
+    # Custom built GStreamer in /usr/lib
+    export GST_PLUGIN_PATH="$HERE/usr/lib/gstreamer-1.0"
+    export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0:$GI_TYPELIB_PATH"
+elif [ -d "$HERE/usr/lib64/gstreamer-1.0" ]; then
+    # System GStreamer in /usr/lib64
+    export GST_PLUGIN_PATH="$HERE/usr/lib64/gstreamer-1.0"
+    export GI_TYPELIB_PATH="$HERE/usr/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+fi
+
+# Enable GStreamer debug if needed
+#export GST_DEBUG=3
+
 exec "$HERE/usr/bin/xpra" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"

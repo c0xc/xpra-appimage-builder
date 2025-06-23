@@ -95,6 +95,7 @@ brew install lz4
 # many of which depend on a newer glibc (2.33+), which we don't want
 # unless USE_BREW_HEADERS_LIBS=1.
 if ! pkg-config --exists girepository-2.0; then
+    # OS package gobject-introspection-devel too old or not working -> brew
     echo "[setup_brew] Installing gobject-introspection..."
     brew install gobject-introspection
 fi
@@ -115,14 +116,6 @@ if ! command -v clang >/dev/null 2>&1; then
     export PATH="/home/linuxbrew/.linuxbrew/opt/llvm/bin:$PATH"
     export LDFLAGS="-L/home/linuxbrew/.linuxbrew/opt/llvm/lib"
     export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/opt/llvm/include"
-fi
-
-# Install gobject-introspection for meson build
-# ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
-# OS package gobject-introspection-devel too old or not working -> brew
-if ! pkg-config --exists girepository-2.0; then
-    echo "[setup_brew] Installing gobject-introspection..."
-    brew install gobject-introspection
 fi
 
 # Install GTK3 development files

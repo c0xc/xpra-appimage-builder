@@ -34,22 +34,20 @@ else
 fi
 
 # Xpra dependencies for X11 via brew
-if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
-    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=1: Installing X11 protocol headers and libraries via brew..."
-    brew install libxres
-    brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
-    brew install libxkbfile libxdmcp
-    # GObject introspection is needed for pygobject
-    brew install gobject-introspection
-else
-    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=0, skipping X11 headers installation via brew."
-    # Ensure we have gobject-introspection from the system
-    if ! pkg-config --exists gobject-introspection-1.0; then
-        echo "[build_prereqs] WARNING: gobject-introspection-1.0 not found via pkg-config. This may cause pygobject build to fail."
-        echo "[build_prereqs] Installing gobject-introspection development package from system..."
-        dnf install -y gobject-introspection-devel
-    fi
-fi
+echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
+brew install libxres
+brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+brew install libxkbfile libxdmcp
+# TODO check compatibility
+# Pulling those via Brew might introduce a dependency on a newer glibc (2.33+)
+#if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
+#    echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
+#    brew install libxres
+#    brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+#    brew install libxkbfile libxdmcp
+#else
+#    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=0, skipping X11 headers installation via brew."
+#fi
 
 # Multimedia codecs, ffmpeg
 # These are too old or missing in CentOS 8 repos
@@ -60,6 +58,7 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     echo "[build_prereqs] USE_BREW_HEADERS_LIBS=1, installing codecs via brew..."
     brew install ffmpeg libvpx webp
     brew install opus x264 #x265
+    brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
 else
     echo "[build_prereqs] Building GStreamer from source"
     /usr/local/bin/build_gstreamer.sh

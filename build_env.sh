@@ -128,8 +128,9 @@ echo "[build_env] Installing core build tools via uv..."
 #uv pip install meson ninja yasm nasm pkg-config cmake autoconf automake libtool wget
 pip install meson ninja yasm nasm 
 
-# TODO common prefix for all dependencies
-DEPS_PREFIX="/opt/xpra-deps"
+# Set common prefix for dependencies built from source
+# TODO 
+DEPS_PREFIX="/opt/dep"
 mkdir -p "$DEPS_PREFIX"
 
 # Check for girepository-2.0, build it unless USE_BREW_HEADERS_LIBS=1 (installing via brew)
@@ -151,28 +152,27 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     # girepository-2.0 / gobject-introspection
     if ! pkg-config --exists girepository-2.0; then
         echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
-        #old_wd=$PWD
+        old_wd=$PWD
         # Build and install gobject-introspection in /opt/gobject-introspection if not present
         GI_PREFIX="/opt/gobject-introspection"
+        GI_VERSION="1.84"
         # Use gcc instead of clang
         export CC=gcc
         export CXX=g++
         export GI_HOST_CC=gcc
         echo "[build_env] Building gobject-introspection $GI_VERSION in $GI_PREFIX..."
-        mkdir -p /tmp/gi_build && pushd /tmp/gi_build
-        wget https://download.gnome.org/sources/gobject-introspection/1.84/gobject-introspection-1.84.0.tar.xz
-        tar xf gobject-introspection-$GI_VERSION.tar.xz
-        pushd gobject-introspection-$GI_VERSION
+        mkdir -p /tmp/gi_build && cd /tmp/gi_build
+        wget https://download.gnome.org/sources/gobject-introspection/$GI_VERSION/gobject-introspection-$GI_VERSION.0.tar.xz
+        tar xf gobject-introspection-$GI_VERSION.0.tar.xz
+        cd gobject-introspection-$GI_VERSION.0
         meson setup builddir --prefix="$GI_PREFIX"
         ninja -C builddir
         ninja -C builddir install
-        popd
-        popd
-        #[ -n "$old_wd"] && cd "$old_wd"
+        [ -n "$old_wd" ] && cd "$old_wd"
         # Export paths for pkg-config and libraries (for this shell and child processes)
-        export PKG_CONFIG_PATH="$GI_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
-        export LD_LIBRARY_PATH="$GI_PREFIX/lib:$LD_LIBRARY_PATH"
-        export GI_TYPELIB_PATH="$GI_PREFIX/lib/girepository-1.0:$GI_TYPELIB_PATH"
+        export PKG_CONFIG_PATH="$GI_PREFIX/lib/pkgconfig:$GI_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+        export LD_LIBRARY_PATH="$GI_PREFIX/lib:$GI_PREFIX/lib64:$LD_LIBRARY_PATH"
+        export GI_TYPELIB_PATH="$GI_PREFIX/lib/girepository-1.0:$GI_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
         echo "[build_env] gobject-introspection built and environment variables set."
 
         # Install Python module - requires gobject-introspection to be built first
