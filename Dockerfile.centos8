@@ -84,6 +84,9 @@ RUN dnf -y install \
     mesa-libGLU-devel \
     xorg-x11-proto-devel
 
+# GStreamer build dependencies (only those available in CentOS repos)
+RUN dnf -y install flex bison json-glib-devel libcap-devel alsa-lib-devel pulseaudio-libs-devel libogg-devel libwebp-devel opus-devel
+
 # Install CUDA repository and toolkit for NVENC/NVIDIA support
 RUN dnf -y install 'dnf-command(config-manager)' \
     && dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo \
@@ -159,6 +162,10 @@ COPY linuxdeploy-*.AppImage /workspace/
 # Optionally copy xpra source archives to workspace if present
 RUN cp /var/tmp/xpra-*.zip /workspace/ 2>/dev/null || true
 RUN cp /var/tmp/xpra-*.tar.* /workspace/ 2>/dev/null || true
+
+# Pass USE_BREW_HEADERS_LIBS (at build time)
+ARG USE_BREW_HEADERS_LIBS=
+ENV USE_BREW_HEADERS_LIBS=${USE_BREW_HEADERS_LIBS}
 
 # Pre-create the Python virtual environment at build time (idempotent)
 USER builder

@@ -2,6 +2,8 @@
 set -e
 
 # build_prereqs.sh: Install Python and system prerequisites for Xpra build
+# Here, we install or build missing dependencies,
+# using the prepared Python environment.
 
 # Install basic Python dependencies (redundant if already done, but safe)
 echo "[build_prereqs] Installing base Python dependencies..."
@@ -32,22 +34,36 @@ else
 fi
 
 # Xpra dependencies for X11 via brew
-echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
-brew install libxres
-brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
+    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=1: Installing X11 protocol headers and libraries via brew..."
+    brew install libxres
+    brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+    brew install libxkbfile libxdmcp
+    # GObject introspection is needed for pygobject
+    brew install gobject-introspection
+else
+    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=0, skipping X11 headers installation via brew."
+    # Ensure we have gobject-introspection from the system
+    if ! pkg-config --exists gobject-introspection-1.0; then
+        echo "[build_prereqs] WARNING: gobject-introspection-1.0 not found via pkg-config. This may cause pygobject build to fail."
+        echo "[build_prereqs] Installing gobject-introspection development package from system..."
+        dnf install -y gobject-introspection-devel
+    fi
+fi
 
-# Modern multimedia codecs and tools (for Xpra, video, audio, etc)
-# These are too old or missing in CentOS 8 repos, so we use Homebrew.
-echo "[setup_brew] Installing multimedia codecs and libraries via brew..."
-brew install ffmpeg libvpx webp
-brew install opus x264 #x265
-brew install libxkbfile libxdmcp
-
-# GStreamer and related audio/video dependencies
-echo "[setup_brew] Installing GStreamer and audio/video dependencies via brew..."
-brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
-brew install gobject-introspection pygobject3
-
-popd
+# Multimedia codecs, ffmpeg
+# These are too old or missing in CentOS 8 repos
+# We pull them via Brew if USE_BREW_HEADERS_LIBS=1
+# note that would introduce a dependency on a newer glibc (2.33+)
+# By default we build GStreamer from source for compatibility
+if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
+    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=1, installing codecs via brew..."
+    brew install ffmpeg libvpx webp
+    brew install opus x264 #x265
+else
+    echo "[build_prereqs] Building GStreamer from source"
+    /usr/local/bin/build_gstreamer.sh
+fi
 
 echo "[build_prereqs] Done."
+popd

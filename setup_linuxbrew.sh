@@ -72,15 +72,32 @@ source "$HOME/.brew_profile" 2>/dev/null || true
 mkdir -p "$HOME/.local/bin"
 ln -sf "$BREW_DIR/bin/brew" "$HOME/.local/bin/brew"
 
+# Done setting up Homebrew/linuxbrew
+echo "[setup_brew] Linuxbrew installed at $BREW_DIR"
+# Now install some build tools which have not been installed yet
+# NOTE: Not installing any libraries here! See build_prereqs.sh for that.
+# Libraries from Linuxbrew introduce a dependency on a newer glibc (like 2.33+),
+# than that of CentOS 8 (2.28), with which we want to stay compatible.
+# That decision is made in build_prereqs.sh, in the container.
+# This script (called by build_env.sh) runs as part of the image build.
+# (The podman image should not be limited to one of the two options.)
+
 # Install build-time tools and libraries (prebuilt bottles)
 echo "[setup_brew] Installing build-time tools and libraries via brew..."
 brew install cmake
 brew install llvm
 brew install xxhash
 brew install lz4
-brew install gobject-introspection
-brew install py3cairo
-brew install pygobject3
+
+# Install gobject-introspection if not already installed
+# for meson build of pygobject
+# Note that this would pull in a lot of dependencies,
+# many of which depend on a newer glibc (2.33+), which we don't want
+# unless USE_BREW_HEADERS_LIBS=1.
+if ! pkg-config --exists girepository-2.0; then
+    echo "[setup_brew] Installing gobject-introspection..."
+    brew install gobject-introspection
+fi
 
 # Install newer CMake if not already installed
 if ! command -v cmake >/dev/null 2>&1; then
@@ -110,6 +127,18 @@ fi
 
 # Install GTK3 development files
 brew install gtk+3 # for gdk-3.0.pc (GTK3 development files)
+
+# Install required build tools from Homebrew (modern versions)
+BREW_BUILD_TOOLS=(meson ninja yasm nasm pkg-config cmake autoconf automake libtool wget)
+for tool in "${BREW_BUILD_TOOLS[@]}"; do
+    if ! command -v "$tool" &>/dev/null; then
+        echo "[setup_homebrew] Installing $tool via Homebrew..."
+        brew install "$tool"
+    fi
+    # Optionally, force-link to ensure Homebrew's version is used
+    brew link --overwrite --force "$tool" 2>/dev/null || true
+    echo "[setup_homebrew] $tool available at $(command -v $tool)"
+done
 
 # Print installed versions
 echo "[setup_brew] Installed package versions:"

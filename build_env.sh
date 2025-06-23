@@ -1,7 +1,11 @@
 #!/bin/bash
 # not using set -e, might cause silent failures (uncaught error skipping the rest of the script)
 
-# build_env.sh: Prepare Python environment for xpra build
+# build_env.sh: Prepare Python environment for build
+# Some core tools are also installed - via Brew unless USE_BREW=0
+# For example meson (missing in CentOS 8)
+# No [pre-built] libraries are installed here, as this is still
+# part of the Podman image build process, that decision is made later.
 
 # Check if jq is available
 if ! command -v jq >/dev/null 2>&1; then
@@ -116,67 +120,79 @@ fi
 # Install core Python tools
 echo "[build_env] Installing base Python dependencies..."
 pip install --upgrade pip setuptools wheel
-#echo "[build_env] Installing build tool for PEP 517/518 wheel builds..."
 pip install --upgrade build
+pip install pycairo pygobject
 
-# Set up Linuxbrew to install more dependencies
-if [ -x /usr/local/bin/setup_linuxbrew.sh ]; then
+# Install meson etc. which we'll need for gobject-introspection
+echo "[build_env] Installing core build tools via uv..."
+#uv pip install meson ninja yasm nasm pkg-config cmake autoconf automake libtool wget
+pip install meson ninja yasm nasm 
+
+# TODO common prefix for all dependencies
+DEPS_PREFIX="/opt/xpra-deps"
+mkdir -p "$DEPS_PREFIX"
+
+# Check for girepository-2.0, build it unless USE_BREW_HEADERS_LIBS=1 (installing via brew)
+if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
+    # Build PCRE2 for gobject-introspection
+    PCRE2_VERSION="10.42"
+    mkdir -p /tmp/pcre2_build && pushd /tmp/pcre2_build
+    wget https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.gz
+    tar xf pcre2-$PCRE2_VERSION.tar.gz
+    cd pcre2-$PCRE2_VERSION
+    ./configure --prefix=/opt/pcre2
+    make -j4
+    make install
+    popd
+    # Export paths
+    export PKG_CONFIG_PATH="/opt/pcre2/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export LD_LIBRARY_PATH="/opt/pcre2/lib:$LD_LIBRARY_PATH"
+
+    # girepository-2.0 / gobject-introspection
+    if ! pkg-config --exists girepository-2.0; then
+        echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
+        #old_wd=$PWD
+        # Build and install gobject-introspection in /opt/gobject-introspection if not present
+        GI_PREFIX="/opt/gobject-introspection"
+        # Use gcc instead of clang
+        export CC=gcc
+        export CXX=g++
+        export GI_HOST_CC=gcc
+        echo "[build_env] Building gobject-introspection $GI_VERSION in $GI_PREFIX..."
+        mkdir -p /tmp/gi_build && pushd /tmp/gi_build
+        wget https://download.gnome.org/sources/gobject-introspection/1.84/gobject-introspection-1.84.0.tar.xz
+        tar xf gobject-introspection-$GI_VERSION.tar.xz
+        pushd gobject-introspection-$GI_VERSION
+        meson setup builddir --prefix="$GI_PREFIX"
+        ninja -C builddir
+        ninja -C builddir install
+        popd
+        popd
+        #[ -n "$old_wd"] && cd "$old_wd"
+        # Export paths for pkg-config and libraries (for this shell and child processes)
+        export PKG_CONFIG_PATH="$GI_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+        export LD_LIBRARY_PATH="$GI_PREFIX/lib:$LD_LIBRARY_PATH"
+        export GI_TYPELIB_PATH="$GI_PREFIX/lib/girepository-1.0:$GI_TYPELIB_PATH"
+        echo "[build_env] gobject-introspection built and environment variables set."
+
+        # Install Python module - requires gobject-introspection to be built first
+        # ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
+        echo "[build_env] Installing pygobject"
+        pip install pygobject
+        if [ $? -ne 0 ]; then
+            echo "[build_env] ERROR: Failed to install pygobject"
+            exit 1
+        fi
+    fi
+fi
+
+# Set up Linuxbrew to install more dependencies if USE_BREW is not explicitly set to 0
+# Note we may install tools like meson here but no libraries yet, see build_prereqs.sh
+if [ "${USE_BREW:-1}" != "0" ]; then
     echo "[build_env] Setting up Linuxbrew..."
     bash /usr/local/bin/setup_linuxbrew.sh
 else
-    echo "[build_env] [WARN] setup_linuxbrew.sh not found, skipping Homebrew setup."
+    echo "[build_env] USE_BREW=0, skipping Homebrew setup."
 fi
-
-# Install build-time tools and libraries (prebuilt bottles are fine)
-echo "[setup_brew] Installing build-time tools and libraries via brew..."
-brew install cmake
-brew install llvm
-brew install xxhash
-brew install lz4
-brew install gobject-introspection
-brew install py3cairo
-brew install pygobject3
-
-# Install newer CMake version (slow)
-if ! command -v cmake >/dev/null 2>&1; then
-    echo "[setup_brew] Installing cmake..."
-    brew install cmake
-else
-    echo "[setup_brew] CMake already installed, skipping..."
-fi
-
-# Install clang with LLVM
-if ! command -v clang >/dev/null 2>&1; then
-    echo "[setup_brew] Installing clang with LLVM..."
-    brew install llvm
-    # Add LLVM to PATH
-    export PATH="/home/linuxbrew/.linuxbrew/opt/llvm/bin:$PATH"
-    export LDFLAGS="-L/home/linuxbrew/.linuxbrew/opt/llvm/lib"
-    export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/opt/llvm/include"
-fi
-
-# Install gobject-introspection for meson build
-# ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
-# OS package gobject-introspection-devel too old or not working -> brew
-if ! pkg-config --exists girepository-2.0; then
-    echo "[setup_brew] Installing gobject-introspection..."
-    brew install gobject-introspection
-fi
-
-# Install GTK3 development files
-brew install gtk+3 # for gdk-3.0.pc (GTK3 development files)
-
-# Print installed versions
-echo "[setup_brew] Installed package versions:"
-brew list --versions xxhash
-brew list --versions lz4
-
-# Optionally build ffmpeg and codecs from source if needed
-#if [ -x /usr/local/bin/build_ffmpeg_codecs.sh ]; then
-#    # echo "[build_env] Optionally building ffmpeg and codecs from source (see build_ffmpeg_codecs.sh)..."
-#    # bash /usr/local/bin/build_ffmpeg_codecs.sh
-#else
-#    echo "[build_env] build_ffmpeg_codecs.sh not found, skipping source build of ffmpeg/codecs."
-#fi
 
 echo "[build_env] Done."
