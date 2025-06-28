@@ -121,58 +121,77 @@ fi
 echo "[build_env] Installing base Python dependencies..."
 pip install --upgrade pip setuptools wheel
 pip install --upgrade build
-pip install pycairo pygobject
+pip install pycairo
 
 # Install meson etc. which we'll need for gobject-introspection
 echo "[build_env] Installing core build tools via uv..."
-#uv pip install meson ninja yasm nasm pkg-config cmake autoconf automake libtool wget
 pip install meson ninja yasm nasm 
 
-# Set common prefix for dependencies built from source
-# TODO 
-DEPS_PREFIX="/opt/dep"
+# Common prefix for dependencies built from source, set in container_init.sh
+DEPS_PREFIX="/opt/dep" # set here because build_env runs before container_init.sh
+echo "[build_env] Setting up dependencies prefix: $DEPS_PREFIX"
+if [ -z "$DEPS_PREFIX" ]; then
+    echo "[build_env] ERROR: DEPS_PREFIX is not set, please set it in container_init.sh"
+    exit 1
+fi
 mkdir -p "$DEPS_PREFIX"
+# Build environment variables, duplicated from container_init.sh # TODO
+export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="$DEPS_PREFIX/lib:$DEPS_PREFIX/lib64:$LD_LIBRARY_PATH"
+export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+
+# Use gcc instead of clang
+export CC=gcc
+export CXX=g++
+export GI_HOST_CC=gcc
 
 # Check for girepository-2.0, build it unless USE_BREW_HEADERS_LIBS=1 (installing via brew)
 if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
-    # Build PCRE2 for gobject-introspection
+    # Build PCRE2, required for gobject-introspection
     PCRE2_VERSION="10.42"
     mkdir -p /tmp/pcre2_build && pushd /tmp/pcre2_build
     wget https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.gz
     tar xf pcre2-$PCRE2_VERSION.tar.gz
     cd pcre2-$PCRE2_VERSION
-    ./configure --prefix=/opt/pcre2
-    make -j4
+    #./configure --prefix=/opt/pcre2
+    ./configure --prefix="$DEPS_PREFIX" && \
+    make -j4 && \
     make install
+    rc=$?
     popd
-    # Export paths
-    export PKG_CONFIG_PATH="/opt/pcre2/lib/pkgconfig:$PKG_CONFIG_PATH"
-    export LD_LIBRARY_PATH="/opt/pcre2/lib:$LD_LIBRARY_PATH"
+    if [ $rc -ne 0 ]; then
+        echo "[build_env] ERROR: Failed to build PCRE2"
+        exit $rc
+    fi
+    echo "[build_env] PCRE2 $PCRE2_VERSION built and installed to $DEPS_PREFIX"
 
     # girepository-2.0 / gobject-introspection
     if ! pkg-config --exists girepository-2.0; then
         echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
         old_wd=$PWD
-        # Build and install gobject-introspection in /opt/gobject-introspection if not present
-        GI_PREFIX="/opt/gobject-introspection"
         GI_VERSION="1.84"
-        # Use gcc instead of clang
-        export CC=gcc
-        export CXX=g++
-        export GI_HOST_CC=gcc
-        echo "[build_env] Building gobject-introspection $GI_VERSION in $GI_PREFIX..."
+        echo "[DEBUG] pkg-config --cflags libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --cflags libpcre2-8 2>&1)"
+        echo "[DEBUG] pkg-config --libs libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --libs libpcre2-8 2>&1)"
+        echo "[build_env] Building gobject-introspection $GI_VERSION..."
         mkdir -p /tmp/gi_build && cd /tmp/gi_build
         wget https://download.gnome.org/sources/gobject-introspection/$GI_VERSION/gobject-introspection-$GI_VERSION.0.tar.xz
         tar xf gobject-introspection-$GI_VERSION.0.tar.xz
         cd gobject-introspection-$GI_VERSION.0
-        meson setup builddir --prefix="$GI_PREFIX"
-        ninja -C builddir
-        ninja -C builddir install
+        (
+            export CC=gcc CXX=g++ GI_HOST_CC=gcc
+            meson setup --wipe builddir --prefix="$DEPS_PREFIX" && \
+            ninja -C builddir && \
+            ninja -C builddir install
+        )
+        #meson setup builddir --prefix="$DEPS_PREFIX" && \
+        #ninja -C builddir && \
+        #ninja -C builddir install
+        rc=$?
         [ -n "$old_wd" ] && cd "$old_wd"
-        # Export paths for pkg-config and libraries (for this shell and child processes)
-        export PKG_CONFIG_PATH="$GI_PREFIX/lib/pkgconfig:$GI_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
-        export LD_LIBRARY_PATH="$GI_PREFIX/lib:$GI_PREFIX/lib64:$LD_LIBRARY_PATH"
-        export GI_TYPELIB_PATH="$GI_PREFIX/lib/girepository-1.0:$GI_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+        if [ $rc -ne 0 ]; then
+            echo "[build_env] ERROR: Failed to build gobject-introspection"
+            exit $rc
+        fi
         echo "[build_env] gobject-introspection built and environment variables set."
 
         # Install Python module - requires gobject-introspection to be built first

@@ -122,9 +122,11 @@ if [ "$CLEAN" = "1" ]; then
     echo "[run_local] CLEAN=1: Forcing image rebuild by removing $IMAGE..."
     podman rmi -f "$IMAGE" 2>/dev/null || true
 fi
-if [ "$NO_CACHE" != "" ]; then
-    PODDMAN_RUN_ARGS+=( "--rm" )
-fi
+PODMAN_RUN_ARGS=()
+#if [ "$NO_CACHE" != "" ]; then
+#    PODDMAN_RUN_ARGS+=( "--rm" )
+#fi
+PODMAN_RUN_ARGS+=( -e USE_BREW_HEADERS_LIBS )
 
 # Build the image (partially prepared for shell mode), run it with the entrypoint script
 # Several steps: build_env, build_prereqs, build_xpra, check_xpra.

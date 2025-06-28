@@ -4,6 +4,10 @@
 
 # Set up environment variables
 export VENV_DIR="/opt/pyenv"
+export DEPS_PREFIX="/opt/dep"
+export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="$DEPS_PREFIX/lib:$DEPS_PREFIX/lib64:$LD_LIBRARY_PATH"
+export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
 
 # Ensure $HOME/.local/bin is in PATH for all scripts and shells
 export PATH="$HOME/.local/bin:$PATH:/tiefkuehlfach"
@@ -19,15 +23,8 @@ fi
 # Umask - allow group read/write permissions
 umask 0002
 
-# Optionally set up LinuxBrew if enabled (one-time, but safe to check each session)
-if [ "${USE_LINUXBREW:-false}" = "true" ] && [ -x "/usr/local/bin/setup_linuxbrew.sh" ]; then
-    $SILENT_MODE || echo "[init] Setting up LinuxBrew package manager..."
-    /usr/local/bin/setup_linuxbrew.sh
-    if [ -f "$HOME/.brew_profile" ]; then
-        $SILENT_MODE || echo "[init] Sourcing LinuxBrew profile..."
-        source "$HOME/.brew_profile"
-    fi
-elif [ -f "$HOME/.brew_profile" ]; then
+# Linuxbrew
+if [ -f "$HOME/.brew_profile" ]; then
     $SILENT_MODE || echo "[init] Sourcing LinuxBrew profile..."
     source "$HOME/.brew_profile"
 fi
