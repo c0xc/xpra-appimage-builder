@@ -234,6 +234,18 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideoscale.so" "$APPDIR_LIB/gstreamer-1.0"
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideorate.so" "$APPDIR_LIB/gstreamer-1.0"
 
+    # --- GStreamer: Miscellaneous ---
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstudp.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstrtp.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstrtpmanager.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstfaac.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstaac.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstspeex.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstmulaw.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstalaw.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstresample.so" "$APPDIR_LIB/gstreamer-1.0"
+    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstsegmentclip.so" "$APPDIR_LIB/gstreamer-1.0"
+
     # Make copied files in AppDir writable (because the source files are not)
     chmod -R u+w "$APPDIR_LIB" 2>/dev/null || true
 
@@ -264,6 +276,10 @@ fi
 
 # Enable GStreamer debug if needed
 #export GST_DEBUG=3
+
+# Suppress Gtk/GLib critical/warning messages
+export G_MESSAGES_DEBUG="none"
+export G_DEBUG="fatal-warnings"
 
 exec "$HERE/usr/bin/xpra" "$@"
 EOF
