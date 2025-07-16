@@ -70,8 +70,12 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     brew install opus x264 #x265
     brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
 else
-    echo "[build_prereqs] Building GStreamer from source"
-    /usr/local/bin/build_gstreamer.sh
+    if [ "$NO_GSTREAMER" = "1" ]; then
+        echo "[build_prereqs] NO_GSTREAMER=1, skipping GStreamer build."
+    else
+        echo "[build_prereqs] Building GStreamer from source"
+        /usr/local/bin/build_gstreamer.sh
+    fi
 fi
 
 echo "[build_prereqs] Done."
