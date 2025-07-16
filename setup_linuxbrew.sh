@@ -40,7 +40,7 @@ echo "[setup_brew] Cloning LinuxBrew repository..."
 git clone --depth=1 $BREW_REPO $BREW_DIR
 
 # Update PATH in current session
-export PATH="$BREW_DIR/bin:$PATH"
+export PATH="$PATH:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin"
 
 # Add to user profile for future sessions
 if [ ! -f "$HOME/.brew_profile" ]; then
@@ -49,7 +49,7 @@ if [ ! -f "$HOME/.brew_profile" ]; then
 export HOMEBREW_PREFIX="$BREW_DIR"
 export HOMEBREW_CELLAR="$BREW_DIR/Cellar"
 export HOMEBREW_REPOSITORY="$BREW_DIR"
-export PATH="$BREW_DIR/bin:$BREW_DIR/sbin:\$PATH"
+export PATH="\$PATH:$BREW_DIR/bin:$BREW_DIR/sbin"
 export MANPATH="$BREW_DIR/share/man\${MANPATH+:}\$MANPATH"
 export INFOPATH="$BREW_DIR/share/info:\${INFOPATH:-}"
 export HOMEBREW_NO_ANALYTICS=1
@@ -88,6 +88,7 @@ brew install cmake
 brew install llvm
 brew install xxhash
 brew install lz4
+brew install yasm
 
 # Install gobject-introspection if not already installed
 # for meson build of pygobject

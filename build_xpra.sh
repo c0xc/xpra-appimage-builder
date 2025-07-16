@@ -49,6 +49,11 @@ if [ "$USE_BREW_HEADERS_LIBS" = "1" ]; then
     export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/include ${CPPFLAGS}"
     # Ensure pkg-config can find both system and Linuxbrew .pc files
     export PKG_CONFIG_PATH="/usr/lib64/pkgconfig:/usr/share/pkgconfig:/home/linuxbrew/.linuxbrew/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+else
+    # Use dev headers from Brew as fallback
+    # TODO use X11 dev headers
+    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib64/pkgconfig"
+    export CPATH="${CPATH:+$CPATH:}$BREW_PREFIX/include"
 fi
 
 # Check for Nvidia tools (nvcc) and set XPRA_NV_BUILD_ARGS
@@ -188,15 +193,52 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     APPDIR_LIB="$APPDIR/usr/lib"
     mkdir -p "$APPDIR_LIB"
 
-    # --- GStreamer: Core libraries and typelibs ---
-    copy_dep_files "$BREW_LIB" "*.so*" "$APPDIR_LIB"
-    #copy_dep_files "$BREW_LIB/girepository-1.0" "Gst-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
-    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstBase-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
-    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstAudio-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
-    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstVideo-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
-    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstPbutils-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
-    #copy_dep_files "$BREW_LIB/girepository-1.0" "GstTag-1.0.typelib" "$APPDIR_LIB/girepository-1.0"
-    # ImportError: Typelib file for namespace 'GObject', version '2.0' not found
+    # --- Explicitly include libraries needed by Python/Cython modules ---
+    echo "[build_xpra] Copying codec libraries for Python modules..."
+    # Video codecs
+    copy_dep_files "$BREW_LIB" "libvpx.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libx264.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libwebp.so*" "$APPDIR_LIB"
+    
+    # Audio codecs
+    copy_dep_files "$BREW_LIB" "libopus.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libvorbis.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libogg.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libspeex.so*" "$APPDIR_LIB"
+    
+    # GStreamer core libraries
+    copy_dep_files "$BREW_LIB" "libgstreamer-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgstbase-1.0.so*" "$APPDIR_LIB" 
+    copy_dep_files "$BREW_LIB" "libgstaudio-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgstvideo-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgstpbutils-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgsttag-1.0.so*" "$APPDIR_LIB"
+    
+    # Audio system libraries
+    copy_dep_files "$BREW_LIB" "libpulse*.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libsndfile*.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libasound*.so*" "$APPDIR_LIB"
+    
+    # GObject and Cairo libraries for Python bindings
+    copy_dep_files "$BREW_LIB" "libcairo*.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgirepository-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgobject-2.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libglib-2.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgmodule-2.0.so*" "$APPDIR_LIB"  # Required for GStreamer plugin loading
+    
+    # --- System libraries needed by Python FFI and GStreamer ---
+    echo "[build_xpra] Copying system libraries needed by Python modules..."
+    
+    # libffi is critical for Python's ctypes and many GStreamer plugins
+    copy_dep_files "$BREW_LIB" "libffi.so.6*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libffi.so" "$APPDIR_LIB"
+    echo "[build_xpra] Using libffi.so.6 from Linuxbrew"
+    
+
+    # You can optionally copy all .so* files, but we'll include specific ones above for better control
+    # copy_dep_files "$BREW_LIB" "*.so*" "$APPDIR_LIB"
+
+    # --- GStreamer: Typelib files for GObject Introspection ---
     copy_dep_files "$BREW_LIB/girepository-1.0" "*.typelib" "$APPDIR_LIB/girepository-1.0"
 
     # --- GStreamer: Minimal audio codecs (Opus, Vorbis, Ogg, Pulse/ALSA) ---
@@ -225,7 +267,6 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     # Video helpers
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstautodetect.so" "$APPDIR_LIB/gstreamer-1.0"
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstvideotestsrc.so" "$APPDIR_LIB/gstreamer-1.0"
-    copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgsttcp.so" "$APPDIR_LIB/gstreamer-1.0"
 
     # --- GStreamer: Parsers and helpers ---
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstaudioparsers.so" "$APPDIR_LIB/gstreamer-1.0"
@@ -246,10 +287,121 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstresample.so" "$APPDIR_LIB/gstreamer-1.0"
     copy_dep_files "$BREW_LIB/gstreamer-1.0" "libgstsegmentclip.so" "$APPDIR_LIB/gstreamer-1.0"
 
+    # --- GStreamer: Plugin scanner binary ---
+    echo "[build_xpra] Copying GStreamer plugin scanner..."
+    # Check for Homebrew Cellar install or fallback to other locations
+    GST_SCANNER_PATHS=(
+        "/home/linuxbrew/.linuxbrew/Cellar/gstreamer/*/libexec/gstreamer-1.0/gst-plugin-scanner"
+        "/home/linuxbrew/.linuxbrew/libexec/gstreamer-1.0/gst-plugin-scanner"
+    )
+    
+    SCANNER_FOUND=0
+    # First try the cellar wildcard path which may return multiple matches
+    CELLAR_SCANNERS=( /home/linuxbrew/.linuxbrew/Cellar/gstreamer/*/libexec/gstreamer-1.0/gst-plugin-scanner )
+    if [ -f "${CELLAR_SCANNERS[0]}" ]; then
+        scanner_path="${CELLAR_SCANNERS[0]}"
+        echo "[build_xpra] Found GStreamer plugin scanner at: $scanner_path"
+        mkdir -p "$APPDIR/usr/libexec/gstreamer-1.0"
+        cp -vf "$scanner_path" "$APPDIR/usr/libexec/gstreamer-1.0/"
+        chmod +x "$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+        echo "[build_xpra] GStreamer plugin scanner copied to AppImage"
+        SCANNER_FOUND=1
+    fi
+    
+    if [ $SCANNER_FOUND -eq 0 ]; then
+        echo "[build_xpra] ERROR: Could not find GStreamer plugin scanner in any standard location!"
+        echo "[build_xpra] GStreamer plugin loading will not work correctly!"
+    fi
+
+    # --- GStreamer: Additional dependencies ---
+    echo "[build_xpra] Copying additional GStreamer dependencies..."
+    # GLib's gio modules (needed by GStreamer for various operations)
+    copy_dep_files "$BREW_LIB" "libgio-2.0.so*" "$APPDIR_LIB"
+    # GLib module system (needed for GStreamer plugins)
+    copy_dep_files "$BREW_LIB" "libgmodule-2.0.so*" "$APPDIR_LIB"
+    # Core GLib libraries - ensure we have all required versions
+    copy_dep_files "$BREW_LIB" "libgobject-2.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libglib-2.0.so*" "$APPDIR_LIB"
+    # GStreamer core registry and helpers
+    copy_dep_files "$BREW_LIB" "libgstcheck-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgstcontroller-1.0.so*" "$APPDIR_LIB"
+    copy_dep_files "$BREW_LIB" "libgstnet-1.0.so*" "$APPDIR_LIB"
+    
+    # --- Special handling for libffi.so.6 ---
+    echo "[build_xpra] Explicitly handling libffi.so.6 which is required by Python modules..."
+    
+    # Many Python modules need libffi.so.6 specifically
+    # First check if Linuxbrew has it (unlikely as it usually has newer versions)
+    LIBFFI_FOUND=0
+    if [ -f "$BREW_LIB/libffi.so.6" ]; then
+        echo "[build_xpra] Found libffi.so.6 in Linuxbrew, copying..."
+        copy_dep_files "$BREW_LIB" "libffi.so.6*" "$APPDIR_LIB"
+        LIBFFI_FOUND=1
+    fi
+    
+    # If not in Linuxbrew, try to find it in system locations
+    if [ $LIBFFI_FOUND -eq 0 ]; then
+        echo "[build_xpra] Looking for libffi.so.6 in system locations..."
+        for LIBFFI_PATH in /usr/lib/libffi.so.6 /usr/lib64/libffi.so.6 /lib/libffi.so.6 /lib64/libffi.so.6; do
+            if [ -f "$LIBFFI_PATH" ]; then
+                echo "[build_xpra] Found libffi.so.6 at $LIBFFI_PATH, copying to AppDir..."
+                cp -vf "$LIBFFI_PATH" "$APPDIR_LIB/"
+                # Also copy any symbolic link targets
+                if [ -L "$LIBFFI_PATH" ]; then
+                    LIBFFI_TARGET=$(readlink -f "$LIBFFI_PATH")
+                    echo "[build_xpra] Copying libffi target: $LIBFFI_TARGET"
+                    cp -vf "$LIBFFI_TARGET" "$APPDIR_LIB/"
+                fi
+                LIBFFI_FOUND=1
+                break
+            fi
+        done
+    fi
+    
+    # Also copy newer libffi versions if available (for newer libraries that need them)
+    copy_dep_files "$BREW_LIB" "libffi.so.*" "$APPDIR_LIB"
+    
+    if [ $LIBFFI_FOUND -eq 0 ]; then
+        echo "[build_xpra] WARNING: libffi.so.6 not found in any standard location!"
+        echo "[build_xpra] Python modules requiring libffi.so.6 may not work correctly!"
+    fi
+    
+    # Add any other missing GStreamer libraries you find in ldd
+
+    # Done copying Linuxbrew libraries
     # Make copied files in AppDir writable (because the source files are not)
     chmod -R u+w "$APPDIR_LIB" 2>/dev/null || true
 
     echo "[build_xpra] Linuxbrew libraries and GStreamer components copied."
+
+else
+    # Find and copy libraries
+    echo "[build_xpra] Using self-built dependencies from DEPS_PREFIX=$DEPS_PREFIX"
+
+    # Copy GStreamer plugin scanner if it exists in self-built deps
+    if [ -f "$DEPS_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
+        echo "[build_xpra] Found GStreamer plugin scanner in DEPS_PREFIX"
+        mkdir -p "$APPDIR/usr/libexec/gstreamer-1.0"
+        cp -vf "$DEPS_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner" "$APPDIR/usr/libexec/gstreamer-1.0/"
+        chmod +x "$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+    fi
+
+    # Copy all ELF binaries and libraries from DEPS_PREFIX for linuxdeploy to scan
+    echo "[build_xpra] Copying ELF binaries and libraries from DEPS_PREFIX to AppDir for linuxdeploy dependency detection..."
+    cp -a $DEPS_PREFIX/bin/* "$APPDIR/usr/bin/" 2>/dev/null || true
+    cp -a $DEPS_PREFIX/lib/*.so* "$APPDIR/usr/lib/" 2>/dev/null || true
+    cp -a $DEPS_PREFIX/lib64/*.so* "$APPDIR/usr/lib64/" 2>/dev/null || true
+    cp -a $DEPS_PREFIX/libexec/* "$APPDIR/usr/libexec/" 2>/dev/null || true
+    cp -a $DEPS_PREFIX/lib/gstreamer-1.0 "$APPDIR/usr/lib/" 2>/dev/null || true
+    cp -a $DEPS_PREFIX/lib64/gstreamer-1.0 "$APPDIR/usr/lib64/" 2>/dev/null || true
+
+    # Copy typelibs from both self-built DEPS_PREFIX and system locations
+    # TODO /usr should be optional but some of our files seem to be missing in DEPS_PREFIX
+    echo "[build_xpra] Copying typelibs from DEPS_PREFIX and system locations to AppDir..."
+    copy_dep_files "/usr/lib64/girepository-1.0" "*.typelib" "$APPDIR/usr/lib64/girepository-1.0"
+    copy_dep_files "/usr/lib/girepository-1.0" "*.typelib" "$APPDIR/usr/lib/girepository-1.0"
+    copy_dep_files "$DEPS_PREFIX/lib/girepository-1.0" "*.typelib" "$APPDIR/usr/lib/girepository-1.0"
+    copy_dep_files "$DEPS_PREFIX/lib64/girepository-1.0" "*.typelib" "$APPDIR/usr/lib64/girepository-1.0"
 
 fi
 
@@ -263,25 +415,94 @@ export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$HERE/usr/bin:$PATH"
 # Setup library paths (include both /usr/lib and /usr/lib64 for CentOS compatibility)
 export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib64:$HERE/usr/python3/lib:$LD_LIBRARY_PATH"
 
-# GStreamer specific environment
-if [ -d "$HERE/usr/lib/gstreamer-1.0" ]; then
-    # Custom built GStreamer in /usr/lib
-    export GST_PLUGIN_PATH="$HERE/usr/lib/gstreamer-1.0"
-    export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0:$GI_TYPELIB_PATH"
-elif [ -d "$HERE/usr/lib64/gstreamer-1.0" ]; then
-    # System GStreamer in /usr/lib64
-    export GST_PLUGIN_PATH="$HERE/usr/lib64/gstreamer-1.0"
-    export GI_TYPELIB_PATH="$HERE/usr/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+# Check for --debug flag first and set XPRA_DEBUG if present
+if [ "$1" = "--debug" ]; then
+    export XPRA_DEBUG=1
+    shift
 fi
 
-# Enable GStreamer debug if needed
-#export GST_DEBUG=3
+# GStreamer: Look for plugins in all possible directories
+GST_PLUGIN_DIRS=()
+GI_TYPELIB_DIRS=()
 
-# Suppress Gtk/GLib critical/warning messages
-export G_MESSAGES_DEBUG="none"
-export G_DEBUG="fatal-warnings"
+# Check for plugins in standard locations
+for gst_dir in "$HERE/usr/lib/gstreamer-1.0" "$HERE/usr/lib64/gstreamer-1.0"; do
+    if [ -d "$gst_dir" ]; then
+        GST_PLUGIN_DIRS+=("$gst_dir")
+    fi
+done
 
-exec "$HERE/usr/bin/xpra" "$@"
+# Check for typelib files in standard locations
+for typelib_dir in "$HERE/usr/lib/girepository-1.0" "$HERE/usr/lib64/girepository-1.0"; do
+    if [ -d "$typelib_dir" ]; then
+        GI_TYPELIB_DIRS+=("$typelib_dir")
+    fi
+done
+
+# Set the GStreamer environment variables if directories were found
+if [ ${#GST_PLUGIN_DIRS[@]} -gt 0 ]; then
+    export GST_PLUGIN_PATH="$(IFS=:; echo "${GST_PLUGIN_DIRS[*]}")"
+    [ "${XPRA_DEBUG:-0}" = "1" ] && echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
+fi
+
+if [ ${#GI_TYPELIB_DIRS[@]} -gt 0 ]; then
+    export GI_TYPELIB_PATH="$(IFS=:; echo "${GI_TYPELIB_DIRS[*]}")${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    [ "${XPRA_DEBUG:-0}" = "1" ] && echo "GI_TYPELIB_PATH=$GI_TYPELIB_PATH"
+fi
+
+# GStreamer plugin scanner - try standard locations
+for scanner in "$HERE/usr/libexec/gstreamer-1.0/gst-plugin-scanner" "$HERE/usr/lib/gstreamer-1.0/gst-plugin-scanner"; do
+    if [ -f "$scanner" ]; then
+        export GST_PLUGIN_SCANNER="$scanner"
+        [ "${XPRA_DEBUG:-0}" = "1" ] && echo "GST_PLUGIN_SCANNER=$GST_PLUGIN_SCANNER"
+        break
+    fi
+done
+
+# Enable debug mode if XPRA_DEBUG is set (either from flag or environment)
+if [ "${XPRA_DEBUG:-0}" = "1" ]; then
+    # Enable GStreamer debugging
+    export GST_DEBUG=3
+    export GST_DEBUG_FILE=/tmp/xpra-gst-debug.log
+    
+    # Create a temporary log directory for all Xpra/GStreamer logs
+    LOG_DIR="/tmp/xpra-debug-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$LOG_DIR"
+    
+    # Selectively disable codecs if needed for debugging
+    if [ "${XPRA_DISABLE_H264:-0}" = "1" ]; then
+        echo "Disabling H.264 codec support for debugging"
+        export XPRA_ENCODING_BLACKLIST="${XPRA_ENCODING_BLACKLIST},h264"
+    fi
+    if [ "${XPRA_DISABLE_GSTREAMER:-0}" = "1" ]; then
+        echo "Disabling GStreamer for debugging"
+        export XPRA_SOUND_COMMAND=""
+        export XPRA_GSTREAMER="0"
+    fi
+    
+    # Capture library load errors for diagnostics
+    LD_DEBUG=libs LD_DEBUG_OUTPUT="$LOG_DIR/ld-debug" "$HERE/usr/bin/xpra" "$@" 2>"$LOG_DIR/stderr.log" || {
+        echo "Xpra crashed with exit code $?. Debug logs saved to $LOG_DIR"
+        echo "You can examine missing libraries with: grep 'cannot open' $LOG_DIR/ld-debug*"
+    }
+    exit $?
+else
+    # Regular execution
+    
+    # Suppress Gtk/GLib critical/warning messages
+    export G_MESSAGES_DEBUG="none"
+    export G_DEBUG="fatal-warnings"
+
+    # Create writable cache directory for GStreamer registry
+    export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+    mkdir -p "$XDG_CACHE_HOME/gstreamer-1.0"
+    
+    # GStreamer initialization options
+    export GST_REGISTRY="$XDG_CACHE_HOME/gstreamer-1.0/registry-$(uname -m).bin"
+    export GST_REGISTRY_UPDATE=yes
+    
+    exec "$HERE/usr/bin/xpra" "$@"
+fi
 EOF
 chmod +x "$APPDIR/AppRun"
 
@@ -335,4 +556,11 @@ if ! "$APPIMAGE_FILE" --version >/dev/null; then
     echo "[build_xpra] ERROR: AppImage failed to run with --version. Build is not valid." >&2
     exit 1
 fi
+
+# Test if compiled appimage detects any codec
+if ! "$APPIMAGE_FILE" attach --encoding=help >/dev/null; then
+    echo "[build_xpra] ERROR: AppImage failed to detect codecs. Build may be incomplete." >&2
+    exit 1
+fi
+
 echo "[build_xpra] === Xpra build process completed successfully! ==="

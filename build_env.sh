@@ -166,6 +166,8 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     echo "[build_env] PCRE2 $PCRE2_VERSION built and installed to $DEPS_PREFIX"
 
     # girepository-2.0 / gobject-introspection
+    # Dependency glib-2.0 found: NO. Found 2.56.4 but need: '>=2.82.0'
+    # Run-time dependency glib-2.0 found: NO (tried pkgconfig and cmake)
     if ! pkg-config --exists girepository-2.0; then
         echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
         old_wd=$PWD
@@ -182,6 +184,8 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
             meson setup --wipe builddir --prefix="$DEPS_PREFIX" && \
             ninja -C builddir && \
             ninja -C builddir install
+            # We need GLib-2.0.typelib later but apparently, those options will prevent it from being built:
+            # -Ddoctool=disabled -Dtests=false 
         )
         #meson setup builddir --prefix="$DEPS_PREFIX" && \
         #ninja -C builddir && \
@@ -194,6 +198,21 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
         fi
         echo "[build_env] gobject-introspection built and environment variables set."
 
+        ## Manually compile and install typelib files that weren't installed automatically
+        #echo "[build_env] Manually installing typelib files..."
+        ## Make sure we have a directory to install them to
+        #mkdir -p "$DEPS_PREFIX/lib/girepository-1.0/"
+        ## Go back to the gobject-introspection build directory
+        #cd /tmp/gi_build/gobject-introspection-1.84.0
+        ## Copy all the generated .typelib files to our prefix
+        #echo "[build_env] Copying typelib files from builddir/gir/ to $DEPS_PREFIX/lib/girepository-1.0/"
+        #find builddir/gir/ -name "*.typelib" -exec cp {} "$DEPS_PREFIX/lib/girepository-1.0/" \;
+        ## Return to previous directory
+        #cd "$old_wd"
+        ## List what we installed for debugging
+        #echo "[build_env] Installed typelib files:"
+        #find "$DEPS_PREFIX/lib/girepository-1.0/" -name "*.typelib" | sort
+
         # Install Python module - requires gobject-introspection to be built first
         # ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
         echo "[build_env] Installing pygobject"
@@ -202,7 +221,57 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
             echo "[build_env] ERROR: Failed to install pygobject"
             exit 1
         fi
+
     fi
+
+    # Build pycairo to provide py3cairo
+    if ! pkg-config --exists py3cairo; then
+        echo "[build_env] py3cairo not found, building pycairo..."
+        old_wd=$PWD
+        PYCAIRO_VERSION="1.24.0"
+        mkdir -p /tmp/pycairo_build
+        cd /tmp/pycairo_build
+        wget https://github.com/pygobject/pycairo/releases/download/v$PYCAIRO_VERSION/pycairo-$PYCAIRO_VERSION.tar.gz
+        tar xf pycairo-$PYCAIRO_VERSION.tar.gz
+        cd pycairo-$PYCAIRO_VERSION
+        meson setup builddir --prefix="$DEPS_PREFIX" && \
+        ninja -C builddir && \
+        ninja -C builddir install
+        rc=$?
+        [ -n "$old_wd" ] && cd "$old_wd"
+        if [ $rc -ne 0 ]; then
+            echo "[build_env] ERROR: Failed to build pycairo"
+            exit $rc
+        fi
+        echo "[build_env] pycairo built and installed to $DEPS_PREFIX"
+        # Ensure PKG_CONFIG_PATH includes the new .pc file
+        #export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+    fi
+
+    # Build PyGObject to provide pygobject-3.0.pc for build-time integration
+    if ! pkg-config --exists pygobject-3.0; then
+        echo "[build_env] pygobject-3.0.pc not found, building PyGObject from source..."
+        old_wd=$PWD
+        PYGOBJECT_VERSION="3.46.0"
+        mkdir -p /tmp/pygobject_build
+        cd /tmp/pygobject_build
+        wget https://download.gnome.org/sources/pygobject/${PYGOBJECT_VERSION%.*}/pygobject-$PYGOBJECT_VERSION.tar.xz
+        tar xf pygobject-$PYGOBJECT_VERSION.tar.xz
+        cd pygobject-$PYGOBJECT_VERSION
+        meson setup builddir --prefix="$DEPS_PREFIX" -Dtests=false && \
+        ninja -C builddir && \
+        ninja -C builddir install
+        rc=$?
+        [ -n "$old_wd" ] && cd "$old_wd"
+        if [ $rc -ne 0 ]; then
+            echo "[build_env] ERROR: Failed to build PyGObject"
+            exit $rc
+        fi
+        echo "[build_env] PyGObject built and installed to $DEPS_PREFIX"
+        # Ensure PKG_CONFIG_PATH includes the new .pc file
+        #export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib6
+    fi
+
 fi
 
 # Set up Linuxbrew to install more dependencies if USE_BREW is not explicitly set to 0
@@ -210,8 +279,28 @@ fi
 if [ "${USE_BREW:-1}" != "0" ]; then
     echo "[build_env] Setting up Linuxbrew..."
     bash /usr/local/bin/setup_linuxbrew.sh
+    # Install build-time tools and libraries (prebuilt bottles)
+    echo "[setup_brew] Installing build-time tools and libraries via brew..."
+    brew install cmake
+    brew install llvm
+    brew install xxhash
+    brew install lz4
+    brew install yasm
 else
     echo "[build_env] USE_BREW=0, skipping Homebrew setup."
 fi
+
+# Careful with libs from Brew
+# (pyenv) /usr/bin/xz --version
+# xz (XZ Utils) 5.2.4
+# liblzma 5.2.4
+# (pyenv) which xz
+# /home/linuxbrew/.linuxbrew/bin/xz
+# (pyenv) /home/linuxbrew/.linuxbrew/bin/xz --version
+# /home/linuxbrew/.linuxbrew/bin/xz: /lib64/libc.so.6: version `GLIBC_2.32' not found (required by /home/linuxbrew/.linuxbrew/bin/xz)
+# /home/linuxbrew/.linuxbrew/bin/xz: /lib64/libc.so.6: version `GLIBC_2.33' not found (required by /home/linuxbrew/.linuxbrew/bin/xz)
+# /home/linuxbrew/.linuxbrew/bin/xz: /lib64/libc.so.6: version `GLIBC_2.34' not found (required by /home/linuxbrew/.linuxbrew/bin/xz)
+# /home/linuxbrew/.linuxbrew/bin/xz: /lib64/libc.so.6: version `GLIBC_2.32' not found (required by /home/linuxbrew/.linuxbrew/Cellar/xz/5.8.1/lib/liblzma.so.5)
+# /home/linuxbrew/.linuxbrew/bin/xz: /lib64/libc.so.6: version `GLIBC_2.34' not found (required by /home/linuxbrew/.linuxbrew/Cellar/xz/5.8.1/lib/liblzma.so.5)
 
 echo "[build_env] Done."

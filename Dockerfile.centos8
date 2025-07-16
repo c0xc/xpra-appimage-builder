@@ -17,7 +17,10 @@ RUN sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/CentOS-*.re
     && sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/CentOS-*.repo \
     && sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/CentOS-*.repo
 
+# [root@360fa1fe892d yum.repos.d]# dnf install     https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm     https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-8.noarch.rpm
+
 # Enable EPEL for extra packages
+RUN dnf -y install 'dnf-command(config-manager)' && dnf config-manager --set-enabled powertools
 RUN dnf -y install epel-release
 
 # Install essential build tools and libraries
@@ -32,8 +35,9 @@ RUN dnf -y install \
     jq cmake
 
 # Install clang from repository (if missing, llvm from Linuxbrew will be used)
-#RUN dnf -y install \
-#    clang
+# Install clang from repository even though it's old (see build_env.sh)
+RUN dnf -y install \
+    clang
 
 # More dependencies (which are not too old in CentOS 8)
 # These are stable, mature libraries that should be installed from the system repo.
@@ -83,9 +87,20 @@ RUN dnf -y install \
     mesa-libEGL-devel \
     mesa-libGLU-devel \
     xorg-x11-proto-devel
-
-# GStreamer build dependencies (only those available in CentOS repos)
-RUN dnf -y install flex bison json-glib-devel libcap-devel alsa-lib-devel pulseaudio-libs-devel libogg-devel libwebp-devel opus-devel
+# libxkbfile-devel and libXdmcp-devel are in EPEL/PowerTools/CRB.
+RUN dnf install -y \
+    libXres-devel \
+    xorg-x11-proto-devel \
+    libX11-devel \
+    libXext-devel \
+    libXrender-devel \
+    libXfixes-devel \
+    libXrandr-devel \
+    libXinerama-devel \
+    libXdamage-devel \
+    libXcomposite-devel \
+    libxkbfile-devel \
+    libXdmcp-devel
 
 # Install CUDA repository and toolkit for NVENC/NVIDIA support
 RUN dnf -y install 'dnf-command(config-manager)' \
@@ -103,6 +118,9 @@ RUN if ! command -v nvcc >/dev/null 2>&1; then echo 'export PATH="/usr/local/cud
 # Example: USE_BREW_HEADERS_LIBS=1 will trigger brew install of:
 #   xorgproto libx11 libxext libxfixes libxdamage libxrandr libxcomposite libxinerama libxrender libxi libxpm libxv libxkbfile libxcursor libxcb libxau libxdmcp libxres
 # The build scripts will set PKG_CONFIG_PATH, LDFLAGS, and CPPFLAGS accordingly.
+
+# GStreamer build dependencies (only those available in CentOS repos)
+RUN dnf -y install flex bison json-glib-devel libcap-devel alsa-lib-devel pulseaudio-libs-devel libogg-devel libvorbis-devel libwebp-devel opus-devel
 
 # Install xxhash from source (not available in CentOS 8 repos)
 RUN cd /tmp && \

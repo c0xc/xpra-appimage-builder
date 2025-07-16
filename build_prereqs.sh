@@ -33,6 +33,20 @@ else
     fi
 fi
 
+# libxxhash
+if ! pkg-config --exists xxhash; then
+    echo "[build_prereqs] Building libxxhash from source into $DEPS_PREFIX..."
+    XXHASH_VERSION="0.8.2"
+    mkdir -p "/tmp/xxhash_build"
+    cd "/tmp/xxhash_build"
+    wget -q "https://github.com/Cyan4973/xxHash/archive/v$XXHASH_VERSION.tar.gz" -O xxhash-$XXHASH_VERSION.tar.gz
+    tar xf xxhash-$XXHASH_VERSION.tar.gz
+    cd xxHash-$XXHASH_VERSION
+    make
+    make PREFIX=$DEPS_PREFIX install
+    cd "$SRC_DIR"
+fi
+
 # Xpra dependencies for X11 via brew
 echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
 brew install libxres

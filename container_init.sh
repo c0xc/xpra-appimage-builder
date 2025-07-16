@@ -8,9 +8,10 @@ export DEPS_PREFIX="/opt/dep"
 export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
 export LD_LIBRARY_PATH="$DEPS_PREFIX/lib:$DEPS_PREFIX/lib64:$LD_LIBRARY_PATH"
 export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
-
-# Ensure $HOME/.local/bin is in PATH for all scripts and shells
-export PATH="$HOME/.local/bin:$PATH:/tiefkuehlfach"
+# /opt/python3/bin/python3-config needed for meson builds (gobject-introspection)
+export PATH="$HOME/.local/bin:/opt/python3/bin:$PATH:/tiefkuehlfach"
+# g-ir-scanner needs to be in PATH for gobject-introspection
+export PATH="$DEPS_PREFIX/bin:$PATH"
 
 # Detect if we are in an interactive shell (for optional silent mode)
 # SILENT_MODE suppresses output in non-interactive shells
