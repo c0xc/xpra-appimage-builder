@@ -198,18 +198,17 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
         fi
         echo "[build_env] gobject-introspection built and environment variables set."
 
-        ## Manually compile and install typelib files that weren't installed automatically
+        # Sometimes GLib-2.0.typelib is not installed automatically
+        # This is a workaround to ensure it is installed
+        # [142/149] /tmp/gi_build/gobject-introspection-1.84.0/builddir/tools/g-ir-compiler -o gir/GLib-2.0.typelib gir/GLib-2.0.gir --includedir /tmp/gi_build/gobject-introspection-1.84.0/builddir/gir --includedir /tmp/gi_build/gobject-introspection-1.84.0/gir
         #echo "[build_env] Manually installing typelib files..."
         ## Make sure we have a directory to install them to
-        #mkdir -p "$DEPS_PREFIX/lib/girepository-1.0/"
-        ## Go back to the gobject-introspection build directory
+        #mkdir -p "$DEPS_PREFIX/lib64/girepository-1.0/"
         #cd /tmp/gi_build/gobject-introspection-1.84.0
         ## Copy all the generated .typelib files to our prefix
         #echo "[build_env] Copying typelib files from builddir/gir/ to $DEPS_PREFIX/lib/girepository-1.0/"
         #find builddir/gir/ -name "*.typelib" -exec cp {} "$DEPS_PREFIX/lib/girepository-1.0/" \;
-        ## Return to previous directory
         #cd "$old_wd"
-        ## List what we installed for debugging
         #echo "[build_env] Installed typelib files:"
         #find "$DEPS_PREFIX/lib/girepository-1.0/" -name "*.typelib" | sort
 

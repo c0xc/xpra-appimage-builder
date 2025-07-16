@@ -82,6 +82,8 @@ echo "[setup_brew] Linuxbrew installed at $BREW_DIR"
 # This script (called by build_env.sh) runs as part of the image build.
 # (The podman image should not be limited to one of the two options.)
 
+# UNREACHABLE CODE BELOW
+
 # Install build-time tools and libraries (prebuilt bottles)
 echo "[setup_brew] Installing build-time tools and libraries via brew..."
 brew install cmake

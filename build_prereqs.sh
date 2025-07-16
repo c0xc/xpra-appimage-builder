@@ -48,20 +48,20 @@ if ! pkg-config --exists xxhash; then
 fi
 
 # Xpra dependencies for X11 via brew
-echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
-brew install libxres
-brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
-brew install libxkbfile libxdmcp
+#echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
+#brew install libxres
+#brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+#brew install libxkbfile libxdmcp
 # TODO check compatibility
 # Pulling those via Brew might introduce a dependency on a newer glibc (2.33+)
-#if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
-#    echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
-#    brew install libxres
-#    brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
-#    brew install libxkbfile libxdmcp
-#else
-#    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=0, skipping X11 headers installation via brew."
-#fi
+if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
+    echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
+    brew install libxres
+    brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
+    brew install libxkbfile libxdmcp
+else
+    echo "[build_prereqs] USE_BREW_HEADERS_LIBS=0, skipping X11 headers installation via brew."
+fi
 
 # Multimedia codecs, ffmpeg
 # These are too old or missing in CentOS 8 repos
