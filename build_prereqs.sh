@@ -47,11 +47,7 @@ if ! pkg-config --exists xxhash; then
     cd "$SRC_DIR"
 fi
 
-# Xpra dependencies for X11 via brew
-#echo "[build_prereqs] Installing X11 protocol headers and libraries via brew..."
-#brew install libxres
-#brew install xorgproto libx11 libxext libxrender libxfixes libxrandr libxinerama libxdamage libxcomposite libxkbfile libxdmcp
-#brew install libxkbfile libxdmcp
+# X11 dependencies
 # TODO check compatibility
 # Pulling those via Brew might introduce a dependency on a newer glibc (2.33+)
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
