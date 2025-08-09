@@ -491,7 +491,6 @@ else
     
     # Suppress Gtk/GLib critical/warning messages
     export G_MESSAGES_DEBUG="none"
-    export G_DEBUG="fatal-warnings"
 
     # Create writable cache directory for GStreamer registry
     export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"

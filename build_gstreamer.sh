@@ -56,16 +56,35 @@ ninja install
 cd $BUILD_DIR
 
 # Build GStreamer plugins-base
+# Extend PKG_CONFIG_PATH to include OS pkg-config paths for this build to pick up pulse libs
 cd $BUILD_DIR
 echo "[build_gstreamer] Building GStreamer plugins-base..."
 wget -q "https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-$GST_VERSION.tar.xz"
 tar xf "gst-plugins-base-$GST_VERSION.tar.xz"
 cd "gst-plugins-base-$GST_VERSION"
 mkdir -p build && cd build
-meson --prefix=$GST_PREFIX -Dbuildtype=release -Dintrospection=enabled ..
+PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" \
+  meson --prefix=$GST_PREFIX -Dbuildtype=release -Dintrospection=enabled ..
+#meson --prefix=$GST_PREFIX -Dbuildtype=release -Dintrospection=enabled ..
 ninja $NINJA_OPTS
 ninja install
 cd $BUILD_DIR
+
+# Build GStreamer plugins-good
+# We should get pulseaudio support here (namely pulsesrc, pulsesink)
+echo "[build_gstreamer] Building GStreamer plugins-good..."
+wget -q "https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-$GST_VERSION.tar.xz"
+tar xf "gst-plugins-good-$GST_VERSION.tar.xz"
+cd "gst-plugins-good-$GST_VERSION"
+mkdir -p build && cd build
+PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" \
+  meson --prefix=$GST_PREFIX -Dbuildtype=release ..
+ninja $NINJA_OPTS
+ninja install
+
+
+
+
 
 # Create setup script for runtime environment variables needed by AppImage
 cat > $GST_PREFIX/setup-gst-env.sh << EOF
