@@ -32,7 +32,7 @@ RUN dnf -y install \
     libjpeg-turbo-devel libpng-devel libwebp-devel \
     opus-devel openssl-devel lz4-devel nss-devel \
     wget fuse squashfs-tools desktop-file-utils ImageMagick ImageMagick-devel \
-    jq cmake
+    jq cmake diffutils
 
 # Install clang from repository (if missing, llvm from Linuxbrew will be used)
 # Install clang from repository even though it's old (see build_env.sh)

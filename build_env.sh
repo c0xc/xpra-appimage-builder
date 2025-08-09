@@ -285,6 +285,7 @@ if [ "${USE_BREW:-1}" != "0" ]; then
     brew install xxhash
     brew install lz4
     brew install yasm
+    brew install diffutils
 else
     echo "[build_env] USE_BREW=0, skipping Homebrew setup."
 fi
