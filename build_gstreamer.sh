@@ -65,7 +65,6 @@ cd "gst-plugins-base-$GST_VERSION"
 mkdir -p build && cd build
 PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" \
   meson --prefix=$GST_PREFIX -Dbuildtype=release -Dintrospection=enabled ..
-#meson --prefix=$GST_PREFIX -Dbuildtype=release -Dintrospection=enabled ..
 ninja $NINJA_OPTS
 ninja install
 cd $BUILD_DIR
@@ -81,8 +80,6 @@ PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib6
   meson --prefix=$GST_PREFIX -Dbuildtype=release ..
 ninja $NINJA_OPTS
 ninja install
-
-
 
 
 

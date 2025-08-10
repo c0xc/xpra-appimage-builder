@@ -72,6 +72,7 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
 else
     if [ "$NO_GSTREAMER" = "1" ]; then
         echo "[build_prereqs] NO_GSTREAMER=1, skipping GStreamer build."
+        /usr/local/bin/build_codecs.sh # experimental, build codecs only (unfinished)
     else
         echo "[build_prereqs] Building GStreamer from source"
         /usr/local/bin/build_gstreamer.sh

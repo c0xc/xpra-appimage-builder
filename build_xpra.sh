@@ -186,7 +186,7 @@ copy_dep_files() {
     done
 }
 
-# Copy Linuxbrew libs
+# Copy libraries
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Linuxbrew libraries into AppDir..."
     BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
@@ -375,44 +375,56 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     echo "[build_xpra] Linuxbrew libraries and GStreamer components copied."
 
 else
-    # Find and copy libraries
+    # Include self-built dependencies from DEPS_PREFIX
     echo "[build_xpra] Using self-built dependencies from DEPS_PREFIX=$DEPS_PREFIX"
 
-    # Copy GStreamer plugin scanner if it exists in self-built deps
+    # --- GStreamer: Copy plugin scanner ---
     if [ -f "$DEPS_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
-        echo "[build_xpra] Found GStreamer plugin scanner in DEPS_PREFIX"
+        echo "[build_xpra] Copying GStreamer plugin scanner..."
         mkdir -p "$APPDIR/usr/libexec/gstreamer-1.0"
         cp -vf "$DEPS_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner" "$APPDIR/usr/libexec/gstreamer-1.0/"
         chmod +x "$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
     fi
 
-    # Copy all ELF binaries and libraries from DEPS_PREFIX for linuxdeploy to scan
-    echo "[build_xpra] Copying ELF binaries and libraries from DEPS_PREFIX to AppDir for linuxdeploy dependency detection..."
+    # --- GStreamer: Copy plugin dir ---
+    if [ -d "$DEPS_PREFIX/lib64/gstreamer-1.0" ]; then
+        mkdir -p "$APPDIR/usr/lib64/"
+        cp -a "$DEPS_PREFIX/lib64/gstreamer-1.0" "$APPDIR/usr/lib64/"
+    fi
+
+    # --- GStreamer: Copy ELF binaries and libraries ---
+    echo "[build_xpra] Copying ELF binaries and libraries to AppDir for linuxdeploy dependency detection..."
     cp -a $DEPS_PREFIX/bin/* "$APPDIR/usr/bin/" 2>/dev/null || true
     cp -a $DEPS_PREFIX/lib/*.so* "$APPDIR/usr/lib/" 2>/dev/null || true
     cp -a $DEPS_PREFIX/lib64/*.so* "$APPDIR/usr/lib64/" 2>/dev/null || true
     cp -a $DEPS_PREFIX/libexec/* "$APPDIR/usr/libexec/" 2>/dev/null || true
-    cp -a $DEPS_PREFIX/lib/gstreamer-1.0 "$APPDIR/usr/lib/" 2>/dev/null || true
-    cp -a $DEPS_PREFIX/lib64/gstreamer-1.0 "$APPDIR/usr/lib64/" 2>/dev/null || true
 
-    # Copy typelibs from both self-built DEPS_PREFIX and system locations
-    # TODO /usr should be optional but some of our files seem to be missing in DEPS_PREFIX
-    echo "[build_xpra] Copying typelibs from DEPS_PREFIX and system locations to AppDir..."
+    # --- GStreamer: Copy typelibs from both self-built and system locations ---
+    # (System typelibs are fallback; ideally, all should come from DEPS_PREFIX)
+    echo "[build_xpra] Copying typelibs to AppDir..."
     copy_dep_files "/usr/lib64/girepository-1.0" "*.typelib" "$APPDIR/usr/lib64/girepository-1.0"
-    copy_dep_files "/usr/lib/girepository-1.0" "*.typelib" "$APPDIR/usr/lib/girepository-1.0"
-    copy_dep_files "$DEPS_PREFIX/lib/girepository-1.0" "*.typelib" "$APPDIR/usr/lib/girepository-1.0"
     copy_dep_files "$DEPS_PREFIX/lib64/girepository-1.0" "*.typelib" "$APPDIR/usr/lib64/girepository-1.0"
 
 fi
 
-# Overwrite AppRun script to launch Xpra using bundled Python and venv
+# AppRun script to launch Xpra using prepared environment
+cp -vf /usr/local/bin/check_gst_codecs.py "$APPDIR/"
+PYTHON_VERSION=$("$HERE/usr/python3/bin/python3" --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
-HERE="$(dirname "$(readlink -f "$0")")"
-export VIRTUAL_ENV="$HERE/usr/pyenv"
-export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$HERE/usr/bin:$PATH"
 
-# Setup library paths (include both /usr/lib and /usr/lib64 for CentOS compatibility)
+# Set up environment
+HERE="$(dirname "$(readlink -f "$0")")"
+PYTHON_VERSION=3.10
+export VIRTUAL_ENV="$HERE/usr/pyenv"
+export PYTHONPATH="$HERE/usr/python3/lib/python$PYTHON_VERSION/site-packages:$HERE/usr/pyenv/lib/python$PYTHON_VERSION/site-packages"
+export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$HERE/usr/bin:$PATH"
+# GSTREAMER: Set GStreamer paths
+export GST_PLUGIN_PATH="$HERE/usr/lib/gstreamer-1.0:$HERE/usr/lib64/gstreamer-1.0"
+export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0:$HERE/usr/lib64/girepository-1.0"
+export GST_PLUGIN_SCANNER="$HERE/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+
+# LD_LIBRARY_PATH + Python library paths
 export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib64:$HERE/usr/python3/lib:$LD_LIBRARY_PATH"
 
 # Check for --debug flag first and set XPRA_DEBUG if present
@@ -421,54 +433,42 @@ if [ "$1" = "--debug" ]; then
     shift
 fi
 
-# GStreamer: Look for plugins in all possible directories
-GST_PLUGIN_DIRS=()
-GI_TYPELIB_DIRS=()
+# Create writable cache directory for GStreamer registry
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+mkdir -p "$XDG_CACHE_HOME/gstreamer-1.0"
 
-# Check for plugins in standard locations
-for gst_dir in "$HERE/usr/lib/gstreamer-1.0" "$HERE/usr/lib64/gstreamer-1.0"; do
-    if [ -d "$gst_dir" ]; then
-        GST_PLUGIN_DIRS+=("$gst_dir")
-    fi
-done
-
-# Check for typelib files in standard locations
-for typelib_dir in "$HERE/usr/lib/girepository-1.0" "$HERE/usr/lib64/girepository-1.0"; do
-    if [ -d "$typelib_dir" ]; then
-        GI_TYPELIB_DIRS+=("$typelib_dir")
-    fi
-done
-
-# Set the GStreamer environment variables if directories were found
-if [ ${#GST_PLUGIN_DIRS[@]} -gt 0 ]; then
-    export GST_PLUGIN_PATH="$(IFS=:; echo "${GST_PLUGIN_DIRS[*]}")"
-    [ "${XPRA_DEBUG:-0}" = "1" ] && echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
-fi
-
-if [ ${#GI_TYPELIB_DIRS[@]} -gt 0 ]; then
-    export GI_TYPELIB_PATH="$(IFS=:; echo "${GI_TYPELIB_DIRS[*]}")${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
-    [ "${XPRA_DEBUG:-0}" = "1" ] && echo "GI_TYPELIB_PATH=$GI_TYPELIB_PATH"
-fi
-
-# GStreamer plugin scanner - try standard locations
-for scanner in "$HERE/usr/libexec/gstreamer-1.0/gst-plugin-scanner" "$HERE/usr/lib/gstreamer-1.0/gst-plugin-scanner"; do
-    if [ -f "$scanner" ]; then
-        export GST_PLUGIN_SCANNER="$scanner"
-        [ "${XPRA_DEBUG:-0}" = "1" ] && echo "GST_PLUGIN_SCANNER=$GST_PLUGIN_SCANNER"
-        break
-    fi
-done
-
+# GStreamer initialization options
+export GST_REGISTRY="$XDG_CACHE_HOME/gstreamer-1.0/registry-$(uname -m).bin"
+export GST_REGISTRY_UPDATE=yes
+    
 # Enable debug mode if XPRA_DEBUG is set (either from flag or environment)
 if [ "${XPRA_DEBUG:-0}" = "1" ]; then
     # Enable GStreamer debugging
     export GST_DEBUG=3
     export GST_DEBUG_FILE=/tmp/xpra-gst-debug.log
-    
+
+    # Print env paths
+    echo "VIRTUAL_ENV=$VIRTUAL_ENV"
+    echo "PATH=$PATH"
+    echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+    echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
+    echo "GI_TYPELIB_PATH=$GI_TYPELIB_PATH"
+    echo "PYTHONPATH=$PYTHONPATH"
+    echo "GST_PLUGIN_SCANNER=$GST_PLUGIN_SCANNER"
+
+    # Check GStreamer plugins, print codecs
+    echo "Available GStreamer plugins:"
+    gst-inspect-1.0 --version
+    echo "Available GStreamer codecs:"
+    gst-inspect-1.0 | grep -E 'codec|video|audio'
+    $HERE/check_gst_codecs.py || {
+        echo "WARNING: check_gst_codecs.py failed, some codecs may not be available."
+    }
+
     # Create a temporary log directory for all Xpra/GStreamer logs
     LOG_DIR="/tmp/xpra-debug-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$LOG_DIR"
-    
+
     # Selectively disable codecs if needed for debugging
     if [ "${XPRA_DISABLE_H264:-0}" = "1" ]; then
         echo "Disabling H.264 codec support for debugging"
@@ -479,7 +479,7 @@ if [ "${XPRA_DEBUG:-0}" = "1" ]; then
         export XPRA_SOUND_COMMAND=""
         export XPRA_GSTREAMER="0"
     fi
-    
+
     # Capture library load errors for diagnostics
     LD_DEBUG=libs LD_DEBUG_OUTPUT="$LOG_DIR/ld-debug" "$HERE/usr/bin/xpra" "$@" 2>"$LOG_DIR/stderr.log" || {
         echo "Xpra crashed with exit code $?. Debug logs saved to $LOG_DIR"
@@ -488,18 +488,10 @@ if [ "${XPRA_DEBUG:-0}" = "1" ]; then
     exit $?
 else
     # Regular execution
-    
+
     # Suppress Gtk/GLib critical/warning messages
     export G_MESSAGES_DEBUG="none"
 
-    # Create writable cache directory for GStreamer registry
-    export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
-    mkdir -p "$XDG_CACHE_HOME/gstreamer-1.0"
-    
-    # GStreamer initialization options
-    export GST_REGISTRY="$XDG_CACHE_HOME/gstreamer-1.0/registry-$(uname -m).bin"
-    export GST_REGISTRY_UPDATE=yes
-    
     exec "$HERE/usr/bin/xpra" "$@"
 fi
 EOF
