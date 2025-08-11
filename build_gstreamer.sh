@@ -37,6 +37,54 @@ export PATH="$GST_PREFIX/bin:$PATH"
 export PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 export LD_LIBRARY_PATH="$GST_PREFIX/lib:$GST_PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+# Build codec dependencies first
+# We need to build FLAC and Vorbis before GStreamer
+# because GStreamer plugins-base depends on them.
+
+# FLAC
+cd "$BUILD_DIR"
+flac_version=$(curl -s https://api.github.com/repos/xiph/flac/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+flac_filename="flac-$flac_version.tar.xz"
+flac_url="https://github.com/xiph/flac/releases/download/$flac_version/$flac_filename"
+if [ -n "$flac_version" ]; then
+    echo "[build_gstreamer] Downloading FLAC $flac_version from $flac_url"
+    wget "$flac_url" && \
+    tar xf "$flac_filename" && \
+    cd "flac-$flac_version"
+    if [ $? -ne 0 ]; then
+        echo "[build_gstreamer] ERROR: Failed to download or extract FLAC $flac_version"
+        exit 1
+    fi
+    ./configure --prefix="$GST_PREFIX" --disable-examples --disable-docs && \
+    make -j$(nproc) && \
+    make install
+else
+    echo "[build_gstreamer] ERROR: Could not determine FLAC version from GitHub API"
+fi
+cd "$BUILD_DIR"
+
+# Vorbis
+cd "$BUILD_DIR"
+vorbis_version=$(curl -s https://xiph.org/downloads/ | grep -oP 'libvorbis-\K[0-9.]+(?=\.tar\.xz)' | sort -V | tail -1)
+vorbis_filename="libvorbis-$vorbis_version.tar.xz"
+vorbis_url="https://downloads.xiph.org/releases/vorbis/$vorbis_filename"
+if [ -n "$vorbis_version" ]; then
+    echo "[build_gstreamer] Downloading Vorbis $vorbis_version from $vorbis_url"
+    wget "$vorbis_url" && \
+    tar xf "$vorbis_filename" && \
+    cd "libvorbis-$vorbis_version"
+    if [ $? -ne 0 ]; then
+        echo "[build_gstreamer] ERROR: Failed to download or extract Vorbis $vorbis_version"
+        exit 1
+    fi
+    ./configure --prefix="$GST_PREFIX" --disable-examples --disable-docs && \
+    make -j$(nproc) && \
+    make install
+else
+    echo "[build_gstreamer] ERROR: Could not determine Vorbis version from GitHub API"
+fi
+cd "$BUILD_DIR"
+
 # Determine latest patch version from the selected GStreamer branch
 cd $BUILD_DIR
 echo "[build_gstreamer] Finding GStreamer version from branch $GST_BRANCH..."
