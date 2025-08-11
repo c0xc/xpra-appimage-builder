@@ -9,6 +9,10 @@ on:
         description: 'Branch to build (default: master)'
         required: false
         default: 'master'
+  push:
+    branches:
+      - master
+      - test
 
 jobs:
   build:
