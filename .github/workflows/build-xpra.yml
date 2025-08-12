@@ -30,6 +30,9 @@ jobs:
       - name: Run build script
         run: |
           ./run_local.sh
+          df -h
+          pwd
+          ls -la
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
