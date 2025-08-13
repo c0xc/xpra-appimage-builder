@@ -29,7 +29,9 @@ jobs:
 
       - name: Run build script
         run: |
-          ./run_local.sh
+          #./run_local.sh
+          docker build -f Dockerfile.centos8 -t xpra-appimg-builder-centos8 .
+          docker run --rm -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
           df -h
           pwd
           ls -la
