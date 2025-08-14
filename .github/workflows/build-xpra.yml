@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Checkout build scripts
         uses: actions/checkout@v4
-      - name: Install build dependencies
+      - name: Print env
         run: |
           echo "[GH runner]"
           df -h
@@ -35,6 +35,10 @@ jobs:
           df -h
           pwd
           ls -la
+          echo "[GH runner] Build complete"
+          ls -ld ${{ github.workspace }}
+          ls -lAh ${{ github.workspace }}/build
+
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
