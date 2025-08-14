@@ -526,36 +526,11 @@ export APPIMAGE_FILE
 cp "$APPIMAGE_FILE" "$BUILD_DIR/"
 echo "[build_xpra] AppImage copied to $BUILD_DIR/$(basename "$APPIMAGE_FILE") and set executable"
 
-# Check for missing shared libraries in AppDir
-# This is a post-build diagnostic to help ensure portability
-MISSING=0
-echo "[build_xpra] Checking for missing shared libraries in AppDir..."
-find "$APPDIR" -type f \( -name '*.so' -o -name '*.so.*' -o -name 'xpra' \) | while read sofile; do
-    so_dir=$(dirname "$sofile")
-    if file "$sofile" | grep -q 'ELF'; then
-        LD_LIBRARY_PATH="$so_dir:$LD_LIBRARY_PATH" ldd "$sofile" | grep 'not found' && { echo "  [MISSING] in $sofile"; MISSING=1; }
-    fi
-done
-echo "[build_xpra] Shared library check complete."
-if [ "$MISSING" -eq 1 ]; then
-    echo "[build_xpra] WARNING: One or more shared libraries are missing in the AppImage. See above for details." >&2
-else
-    echo "[build_xpra] All shared libraries appear to be bundled."
-fi
-
 # Sanity check: run the built AppImage with --version and exit if it fails
 if ! "$APPIMAGE_FILE" --version >/dev/null; then
     echo "[build_xpra] ERROR: AppImage failed to run with --version. Build is not valid." >&2
     exit 1
 fi
-
-# If gobject introspection bindings are missing or incomplete,
-# the following command will fail (but xpra --video-decoders=help won't)
-# (pyenv) xpra attach --encoding=help
-# ImportError: unable to import 'Gtk' version='3.0': Namespace Gtk not available
-# Possible cause: Missing typelib files like Gtk-3.0.typelib were not installed in DEP_PREFIX
-# but if those from the OS were copied into the AppDir:
-# GI_TYPELIB_PATH=$HERE/usr/lib/girepository-1.0:$HERE/usr/lib64/girepository-1.0
 
 # Test if compiled appimage detects any codec
 if ! "$APPIMAGE_FILE" attach --encoding=help >/dev/null; then
