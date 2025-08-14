@@ -16,7 +16,7 @@ set -e
 
 # Base directories
 GST_PREFIX="$DEPS_PREFIX"
-BUILD_DIR="/opt/gst-build"
+BUILD_DIR="/opt/build/gst"
 mkdir -p "$BUILD_DIR"
 PYTHON=python3
 

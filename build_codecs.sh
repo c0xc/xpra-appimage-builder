@@ -4,14 +4,17 @@
 # This script is intended for use when NO_GSTREAMER=1 and USE_BREW_HEADERS_LIBS=0
 
 DEPS_PREFIX="${DEPS_PREFIX:-/opt/dep}"
+
 JOBS=$(nproc)
+BUILD_ROOT="/opt/build"
+mkdir -p "$BUILD_ROOT"
 
 # Build libvpx (VP8/VP9) only if not present
 if ! pkg-config --exists vpx; then
     VPX_VERSION="1.13.0"
     echo "[build_codecs] Building libvpx $VPX_VERSION..."
-    mkdir -p /tmp/vpx_build
-    cd /tmp/vpx_build
+    mkdir -p "$BUILD_ROOT/vpx"
+    cd "$BUILD_ROOT/vpx"
     wget -q "https://github.com/webmproject/libvpx/archive/v${VPX_VERSION}.tar.gz" -O libvpx-${VPX_VERSION}.tar.gz
     tar xf libvpx-${VPX_VERSION}.tar.gz
     cd libvpx-${VPX_VERSION}
@@ -23,15 +26,17 @@ else
 fi
 
 # Build libaom (AV1) only if not present
-#   Compatibility with CMake < 3.5 has been removed from CMake.
 if ! pkg-config --exists aom; then
-    echo "[build_codecs] Building libaom from mozilla/aom..."
-    mkdir -p /tmp/aom_build
-    cd /tmp/aom_build
-    git clone --depth 1 https://github.com/mozilla/aom.git libaom || { echo "[build_codecs] ERROR: Failed to clone mozilla/aom repo"; exit 1; }
-    cd libaom
+    AOM_VERSION="3.9.0" # fails to build, linker error
+    AOM_VERSION="3.12.1"
+    echo "[build_codecs] Downloading and building libaom $AOM_VERSION..."
+    mkdir -p "$BUILD_ROOT/aom"
+    cd "$BUILD_ROOT/aom"
+    wget -q "https://storage.googleapis.com/aom-releases/libaom-${AOM_VERSION}.tar.gz" -O libaom-${AOM_VERSION}.tar.gz || { echo "[build_codecs] ERROR: Failed to download libaom tarball"; exit 1; }
+    tar xf libaom-${AOM_VERSION}.tar.gz || { echo "[build_codecs] ERROR: Failed to extract libaom tarball"; exit 1; }
+    cd libaom-${AOM_VERSION}
     mkdir -p build && cd build
-    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_PREFIX" -DBUILD_SHARED_LIBS=1 -DENABLE_DOCS=0 .. || { echo "[build_codecs] ERROR: libaom cmake failed"; exit 1; }
+    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_PREFIX" -DBUILD_SHARED_LIBS=1 -DENABLE_DOCS=0 -DENABLE_EXAMPLES=0 .. || { echo "[build_codecs] ERROR: libaom cmake failed"; exit 1; }
     make -j$JOBS || { echo "[build_codecs] ERROR: libaom make failed"; exit 1; }
     make install || { echo "[build_codecs] ERROR: libaom make install failed"; exit 1; }
 else
@@ -41,8 +46,8 @@ fi
 # Build libavif (AV1 image format) only if not present
 if ! pkg-config --exists avif; then
     echo "[build_codecs] Building libavif from AOMediaCodec/libavif..."
-    mkdir -p /tmp/avif_build
-    cd /tmp/avif_build
+    mkdir -p "$BUILD_ROOT/avif"
+    cd "$BUILD_ROOT/avif"
     git clone --depth 1 https://github.com/AOMediaCodec/libavif.git libavif || { echo "[build_codecs] ERROR: Failed to clone libavif repo"; exit 1; }
     cd libavif
     mkdir -p build && cd build
@@ -57,8 +62,8 @@ fi
 if ! pkg-config --exists opus; then
     OPUS_VERSION="1.4"
     echo "[build_codecs] Building opus $OPUS_VERSION..."
-    mkdir -p /tmp/opus_build
-    cd /tmp/opus_build
+    mkdir -p "$BUILD_ROOT/opus"
+    cd "$BUILD_ROOT/opus"
     wget -q "https://archive.mozilla.org/pub/opus/opus-${OPUS_VERSION}.tar.gz" -O opus-${OPUS_VERSION}.tar.gz || { echo "[build_codecs] ERROR: Failed to download opus"; exit 1; }
     tar xf opus-${OPUS_VERSION}.tar.gz || { echo "[build_codecs] ERROR: Failed to extract opus archive"; exit 1; }
     cd opus-${OPUS_VERSION}
