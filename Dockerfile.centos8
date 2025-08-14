@@ -170,11 +170,11 @@ RUN chown -R linuxbrew:linuxbrew /home/linuxbrew/.linuxbrew && \
 ARG CACHE_BUST=1
 RUN echo "Cache busting at $(date +%s) with value: $CACHE_BUST"
 
-# Copy all scripts, archives, and requirements.txt to /var/tmp
-COPY *.sh *.zip *.tar.* requirements.txt /var/tmp/
-
+# Copy all scripts, archives, and requirements.txt
+COPY *.sh *.py *.zip *.tar.* requirements.txt /var/tmp/
+COPY *.sh *.py /usr/local/bin/
 # Copy only scripts to /usr/local/bin and set executable
-RUN cp /var/tmp/*.sh /usr/local/bin/ && chmod +x /usr/local/bin/*.sh
+RUN cp -vf /var/tmp/*.sh /usr/local/bin/ && chmod +x /usr/local/bin/*.sh
 COPY linuxdeploy-*.AppImage /workspace/
 
 # Optionally copy xpra source archives to workspace if present
