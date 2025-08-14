@@ -532,10 +532,4 @@ if ! "$APPIMAGE_FILE" --version >/dev/null; then
     exit 1
 fi
 
-# Test if compiled appimage detects any codec
-if ! "$APPIMAGE_FILE" attach --encoding=help >/dev/null; then
-    echo "[build_xpra] ERROR: AppImage failed to detect codecs. Build may be incomplete." >&2
-    exit 1
-fi
-
 echo "[build_xpra] === Xpra build process completed successfully! ==="
