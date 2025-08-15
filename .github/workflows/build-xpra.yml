@@ -43,4 +43,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xpra-appimage
-          path: ./xpra-latest.AppImage
+          path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
