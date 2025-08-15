@@ -131,14 +131,16 @@ else
 fi
 cd "$BUILD_DIR"
 
+
 # libva (Video Acceleration API) >= 1.6
 cd "$BUILD_DIR"
-LIBVA_VERSION="2.20.0"
-LIBVA_TARBALL="libva-${LIBVA_VERSION}.tar.gz"
-LIBVA_URL="https://github.com/intel/libva/releases/download/${LIBVA_VERSION}/${LIBVA_TARBALL}"
-echo "[build_gstreamer] Downloading libva ${LIBVA_VERSION} from $LIBVA_URL"
-wget -O "$LIBVA_TARBALL" "$LIBVA_URL"
-tar xzf "$LIBVA_TARBALL"
+LIBVA_VERSION=$(curl -s https://api.github.com/repos/intel/libva/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+LIBVA_API_URL="https://api.github.com/repos/intel/libva/releases/tags/${LIBVA_VERSION}"
+LIBVA_ASSET_URL=$(curl -s $LIBVA_API_URL | grep browser_download_url | grep -E 'libva-.*\.tar\.(gz|bz2|xz|Z|lzma|zst)' | head -n1 | cut -d '"' -f 4)
+LIBVA_TARBALL=$(basename "$LIBVA_ASSET_URL")
+echo "[build_gstreamer] Downloading libva ${LIBVA_VERSION} from $LIBVA_ASSET_URL"
+wget -O "$LIBVA_TARBALL" "$LIBVA_ASSET_URL" || { echo "[build_gstreamer] ERROR: Failed to download libva tarball"; exit 1; }
+tar xf "$LIBVA_TARBALL" || { echo "[build_gstreamer] ERROR: Failed to extract libva tarball"; exit 1; }
 cd "libva-${LIBVA_VERSION}"
 echo "[build_gstreamer] Building libva ${LIBVA_VERSION} ..."
 ./configure --prefix="$GST_PREFIX"
@@ -184,6 +186,7 @@ cd $BUILD_DIR
 
 # Build GStreamer plugins-good
 # We should get pulseaudio support here (namely pulsesrc, pulsesink)
+cd $BUILD_DIR
 echo "[build_gstreamer] Building GStreamer plugins-good..."
 wget -q "https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-$GST_VERSION.tar.xz"
 tar xf "gst-plugins-good-$GST_VERSION.tar.xz"
@@ -197,6 +200,7 @@ ninja install
 # Build GStreamer plugins-bad (for openh264enc/dec)
 # export CUDA_PATH=/usr/local/cuda
 # export CUDA_HOME=/usr/local/cuda
+cd $BUILD_DIR
 echo "[build_gstreamer] Building GStreamer plugins-bad..."
 wget -q "https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-$GST_VERSION.tar.xz"
 tar xf "gst-plugins-bad-$GST_VERSION.tar.xz"
