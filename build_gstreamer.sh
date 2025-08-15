@@ -85,6 +85,55 @@ else
 fi
 cd "$BUILD_DIR"
 
+# openh264
+cd "$BUILD_DIR"
+openh264_version=$(curl -s https://api.github.com/repos/cisco/openh264/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+openh264_filename="openh264-$openh264_version.tar.gz"
+openh264_url="https://github.com/cisco/openh264/archive/refs/tags/$openh264_version.tar.gz"
+if [ -n "$openh264_version" ]; then
+    echo "[build_gstreamer] Downloading openh264 $openh264_version from $openh264_url"
+    mkdir -p "$BUILD_DIR/openh264"
+    cd "$BUILD_DIR/openh264"
+    wget "$openh264_url" -O "$openh264_filename" && \
+    tar xf "$openh264_filename" && \
+    cd "openh264-${openh264_version#v}" # Remove 'v' prefix for directory name
+    if [ $? -ne 0 ]; then
+        echo "[build_gstreamer] ERROR: Failed to download or extract openh264 $openh264_version"
+        exit 1
+    fi
+    make -j$(nproc) && \
+    make install PREFIX="$GST_PREFIX"
+else
+    echo "[build_gstreamer] ERROR: Could not determine openh264 version from GitHub API"
+fi
+cd "$BUILD_DIR"
+
+# libjpeg-turbo
+cd "$BUILD_DIR"
+jpeg_version=$(curl -s https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+jpeg_filename="libjpeg-turbo-$jpeg_version.tar.gz"
+jpeg_url="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$jpeg_version.tar.gz"
+if [ -n "$jpeg_version" ]; then
+    echo "[build_gstreamer] Downloading libjpeg-turbo $jpeg_version from $jpeg_url"
+    wget "$jpeg_url" -O "$jpeg_filename" && \
+    tar xf "$jpeg_filename" && \
+    cd "libjpeg-turbo-${jpeg_version#v}" # Remove 'v' prefix for directory name
+    if [ $? -ne 0 ]; then
+        echo "[build_gstreamer] ERROR: Failed to download or extract libjpeg-turbo $jpeg_version"
+        exit 1
+    fi
+    mkdir -p build && cd build
+    cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" -DENABLE_SHARED=1 -DENABLE_STATIC=0 ..
+    make -j$(nproc)
+    make install
+else
+    echo "[build_gstreamer] ERROR: Could not determine libjpeg-turbo version from GitHub API"
+fi
+cd "$BUILD_DIR"
+
+###
+# With some codecs in place, we can now build GStreamer
+
 # Determine latest patch version from the selected GStreamer branch
 cd $BUILD_DIR
 echo "[build_gstreamer] Finding GStreamer version from branch $GST_BRANCH..."
@@ -128,6 +177,18 @@ PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib6
   meson --prefix=$GST_PREFIX -Dbuildtype=release ..
 ninja $NINJA_OPTS
 ninja install
+
+# Build GStreamer plugins-bad (for openh264enc/dec)
+echo "[build_gstreamer] Building GStreamer plugins-bad..."
+wget -q "https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-$GST_VERSION.tar.xz"
+tar xf "gst-plugins-bad-$GST_VERSION.tar.xz"
+cd "gst-plugins-bad-$GST_VERSION"
+mkdir -p build && cd build
+PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" \
+  meson --prefix=$GST_PREFIX -Dbuildtype=release ..
+ninja $NINJA_OPTS
+ninja install
+cd $BUILD_DIR
 
 
 

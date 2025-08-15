@@ -125,7 +125,8 @@ pip install pycairo
 
 # Install meson etc. which we'll need for gobject-introspection
 echo "[build_env] Installing core build tools via uv..."
-pip install meson ninja yasm nasm 
+pip install meson ninja yasm
+#pip install nasm 
 
 # Common prefix for dependencies built from source, set in container_init.sh
 DEPS_PREFIX="/opt/dep" # set here because build_env runs before container_init.sh
@@ -285,6 +286,7 @@ if [ "${USE_BREW:-1}" != "0" ]; then
     brew install xxhash
     brew install lz4
     brew install yasm
+    brew install nasm
     brew install diffutils
 else
     echo "[build_env] USE_BREW=0, skipping Homebrew setup."
