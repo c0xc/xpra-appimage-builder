@@ -414,6 +414,10 @@ else
     copy_dep_files "/usr/lib64/girepository-1.0" "*.typelib" "$APPDIR/usr/lib64/girepository-1.0"
     copy_dep_files "$DEPS_PREFIX/lib64/girepository-1.0" "*.typelib" "$APPDIR/usr/lib64/girepository-1.0"
 
+    # Copy libopenh264.so.8 from self-built dependencies to AppImage
+    copy_dep_files "$DEPS_PREFIX/lib64" "libopenh264.so.8*" "$APPDIR/usr/lib64"
+    copy_dep_files "$DEPS_PREFIX/lib" "libopenh264.so.8*" "$APPDIR/usr/lib"
+
 fi
 
 # AppRun script to launch Xpra using prepared environment
@@ -477,6 +481,10 @@ if [ "${XPRA_DEBUG:-0}" = "1" ]; then
     $HERE/check_gst_codecs.py || {
         echo "WARNING: check_gst_codecs.py failed, some codecs may not be available."
     }
+    # More ideas:
+    # gst-inspect-1.0 openh264dec
+    # gst-inspect-1.0 av1dec
+    
 
     # Create a temporary log directory for all Xpra/GStreamer logs
     LOG_DIR="/tmp/xpra-debug-$(date +%Y%m%d-%H%M%S)"
