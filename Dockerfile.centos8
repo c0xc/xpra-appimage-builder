@@ -184,7 +184,7 @@ RUN cp /var/tmp/xpra-*.tar.* /workspace/ 2>/dev/null || true
 # Pass USE_BREW_HEADERS_LIBS (at build time)
 ARG USE_BREW_HEADERS_LIBS=
 ENV USE_BREW_HEADERS_LIBS=${USE_BREW_HEADERS_LIBS}
-ARG NO_GSTREAMER=1
+ARG NO_GSTREAMER=
 ENV NO_GSTREAMER=${NO_GSTREAMER}
 
 # Pre-create the Python virtual environment at build time (idempotent)
