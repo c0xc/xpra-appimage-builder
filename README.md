@@ -19,7 +19,18 @@ You can find pre-built AppImage binaries on the [GitHub Releases page](https://g
 
 ...
 
-### GitHub Actions
+## Codecs (decoder)
+
+```
+$ ./Xpra-x86_64.AppImage encoding | grep 264
+ x264enc, vp8enc, vp9enc
+* dec_openh264         : /tmp/.mount_Xpra-xjcdMJO/usr/pyenv/lib/python3.10/site-packages/xpra/codecs/openh264/decoder.cpython-310-x86_64-linux-gnu.so
+* enc_openh264         : /tmp/.mount_Xpra-xjcdMJO/usr/pyenv/lib/python3.10/site-packages/xpra/codecs/openh264/encoder.cpython-310-x86_64-linux-gnu.so
+* enc_x264             : No module named 'xpra.codecs.x264'
+* openh264                        : 2.6.0
+```
+
+## GitHub Actions
 
 - The workflow in `.github/workflows/build-xpra.yml` runs daily and on manual dispatch.
 - The AppImage artifact will be available in the workflow run.
