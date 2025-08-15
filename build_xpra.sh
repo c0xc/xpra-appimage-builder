@@ -399,6 +399,15 @@ else
     cp -a $DEPS_PREFIX/lib64/*.so* "$APPDIR/usr/lib64/" 2>/dev/null || true
     cp -a $DEPS_PREFIX/libexec/* "$APPDIR/usr/libexec/" 2>/dev/null || true
 
+    # --- NVDEC/CUDA: Copy runtime libraries if USE_NV=1 ---
+    if [ "${USE_NV:-0}" = "1" ]; then
+        echo "[build_xpra] USE_NV=1: Copying CUDA/NVDEC runtime libraries for hardware decoding..."
+        for lib in libcuda.so* libnvcuvid.so* libnvidia-encode.so* libfatbinaryloader.so*; do
+            cp -av $DEPS_PREFIX/lib64/$lib "$APPDIR/usr/lib64/" 2>/dev/null || true
+            cp -av $DEPS_PREFIX/lib/$lib "$APPDIR/usr/lib/" 2>/dev/null || true
+        done
+    fi
+
     # --- GStreamer: Copy typelibs from both self-built and system locations ---
     # (System typelibs are fallback; ideally, all should come from DEPS_PREFIX)
     echo "[build_xpra] Copying typelibs to AppDir..."
@@ -461,6 +470,10 @@ if [ "${XPRA_DEBUG:-0}" = "1" ]; then
     gst-inspect-1.0 --version
     echo "Available GStreamer codecs:"
     gst-inspect-1.0 | grep -E 'codec|video|audio'
+    echo "Checking for h264 codec support..."
+    gst-inspect-1.0 | grep -E 'h264|nvdec' || {
+        echo "WARNING: h264 codec not found, some features may not work."
+    }
     $HERE/check_gst_codecs.py || {
         echo "WARNING: check_gst_codecs.py failed, some codecs may not be available."
     }

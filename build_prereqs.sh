@@ -75,6 +75,7 @@ else
         /usr/local/bin/build_codecs.sh # experimental, build codecs only (unfinished)
     else
         echo "[build_prereqs] Building GStreamer from source"
+        /usr/local/bin/build_codecs.sh # build libaom (AV1) and libvpx (VP9) for GStreamer
         /usr/local/bin/build_gstreamer.sh
     fi
 fi

@@ -131,8 +131,24 @@ else
 fi
 cd "$BUILD_DIR"
 
+# libva (Video Acceleration API) >= 1.6
+cd "$BUILD_DIR"
+LIBVA_VERSION="2.20.0"
+LIBVA_TARBALL="libva-${LIBVA_VERSION}.tar.gz"
+LIBVA_URL="https://github.com/intel/libva/releases/download/${LIBVA_VERSION}/${LIBVA_TARBALL}"
+echo "[build_gstreamer] Downloading libva ${LIBVA_VERSION} from $LIBVA_URL"
+wget -O "$LIBVA_TARBALL" "$LIBVA_URL"
+tar xzf "$LIBVA_TARBALL"
+cd "libva-${LIBVA_VERSION}"
+echo "[build_gstreamer] Building libva ${LIBVA_VERSION} ..."
+./configure --prefix="$GST_PREFIX"
+make -j$(nproc)
+make install
+cd "$BUILD_DIR"
+echo "[build_gstreamer] libva ${LIBVA_VERSION} installed to $GST_PREFIX"
+
 ###
-# With some codecs in place, we can now build GStreamer
+# With some codecs in place, build GStreamer
 
 # Determine latest patch version from the selected GStreamer branch
 cd $BUILD_DIR
@@ -179,11 +195,14 @@ ninja $NINJA_OPTS
 ninja install
 
 # Build GStreamer plugins-bad (for openh264enc/dec)
+# export CUDA_PATH=/usr/local/cuda
+# export CUDA_HOME=/usr/local/cuda
 echo "[build_gstreamer] Building GStreamer plugins-bad..."
 wget -q "https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-$GST_VERSION.tar.xz"
 tar xf "gst-plugins-bad-$GST_VERSION.tar.xz"
 cd "gst-plugins-bad-$GST_VERSION"
 mkdir -p build && cd build
+CUDA_PATH=/usr/local/cuda CUDA_HOME=/usr/local/cuda \
 PKG_CONFIG_PATH="$GST_PREFIX/lib64/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" \
   meson --prefix=$GST_PREFIX -Dbuildtype=release ..
 ninja $NINJA_OPTS
@@ -206,4 +225,4 @@ export PYTHONPATH="\$GST_PREFIX/lib/python$PYTHON_VERSION/site-packages:\$PYTHON
 EOF
 source $GST_PREFIX/setup-gst-env.sh
 
-echo "[build_gstreamer] Done building minimal GStreamer stack in $GST_PREFIX"
+echo "[build_gstreamer] Done building GStreamer in $GST_PREFIX"

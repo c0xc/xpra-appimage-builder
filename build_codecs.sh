@@ -48,10 +48,14 @@ if ! pkg-config --exists avif; then
     echo "[build_codecs] Building libavif from AOMediaCodec/libavif..."
     mkdir -p "$BUILD_ROOT/avif"
     cd "$BUILD_ROOT/avif"
+    if [ -d libavif ]; then
+        echo "[build_codecs] Removing existing libavif directory..."
+        rm -rf libavif
+    fi
     git clone --depth 1 https://github.com/AOMediaCodec/libavif.git libavif || { echo "[build_codecs] ERROR: Failed to clone libavif repo"; exit 1; }
     cd libavif
     mkdir -p build && cd build
-    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_PREFIX" -DBUILD_SHARED_LIBS=1 -DAVIF_BUILD_APPS=0 -DAVIF_BUILD_TESTS=0 -DAVIF_BUILD_EXAMPLES=0 -DAVIF_LIBYUV=LOCAL .. || { echo "[build_codecs] ERROR: libavif cmake failed"; exit 1; }
+    cmake -DCMAKE_INSTALL_PREFIX="$DEPS_PREFIX" -DBUILD_SHARED_LIBS=1 -DAVIF_BUILD_APPS=0 -DAVIF_BUILD_TESTS=0 -DAVIF_BUILD_EXAMPLES=0 -DAVIF_LIBYUV=LOCAL -DAVIF_CODEC_AOM=SYSTEM .. || { echo "[build_codecs] ERROR: libavif cmake failed"; exit 1; }
     make -j$JOBS || { echo "[build_codecs] ERROR: libavif make failed"; exit 1; }
     make install || { echo "[build_codecs] ERROR: libavif make install failed"; exit 1; }
 else
@@ -74,7 +78,21 @@ else
     echo "[build_codecs] opus already present, skipping build."
 fi
 
-# Optionally build other codecs (add here as needed)
+# Build libde265 (H.265/HEVC decoder) only if not present
+if ! pkg-config --exists de265; then
+    LIBDE265_VERSION="1.0.11"
+    echo "[build_codecs] Building libde265 $LIBDE265_VERSION..."
+    mkdir -p "$BUILD_ROOT/de265"
+    cd "$BUILD_ROOT/de265"
+    wget -q "https://github.com/strukturag/libde265/releases/download/v${LIBDE265_VERSION}/libde265-${LIBDE265_VERSION}.tar.gz" -O libde265-${LIBDE265_VERSION}.tar.gz || { echo "[build_codecs] ERROR: Failed to download libde265 tarball"; exit 1; }
+    tar xzf libde265-${LIBDE265_VERSION}.tar.gz || { echo "[build_codecs] ERROR: Failed to extract libde265 tarball"; exit 1; }
+    cd libde265-${LIBDE265_VERSION}
+    ./configure --prefix="$DEPS_PREFIX" --enable-shared --disable-static || { echo "[build_codecs] ERROR: libde265 configure failed"; exit 1; }
+    make -j$JOBS || { echo "[build_codecs] ERROR: libde265 make failed"; exit 1; }
+    make install || { echo "[build_codecs] ERROR: libde265 make install failed"; exit 1; }
+else
+    echo "[build_codecs] libde265 already present, skipping build."
+fi
 
 cd "${SRC_DIR:-$PWD}"
 echo "[build_codecs] Done building VP9 and AV1 codecs into $DEPS_PREFIX."
