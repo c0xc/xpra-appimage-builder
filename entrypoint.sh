@@ -29,15 +29,15 @@ if [ "$USE_SHELL" = "true" ]; then
     echo "===================================================================="
     echo "[xpra-appimg] Running in shell mode"
     echo "You can run the following scripts to continue:"
-    echo "    /usr/local/bin/build_env.sh      # (Re)initialize Python environment"
-    echo "    /usr/local/bin/fetch_src.sh      # Fetch or update Xpra source (if present)"
-    echo "    /usr/local/bin/build_prereqs.sh  # Install build prerequisites and Python deps"
-    echo "    /usr/local/bin/build_xpra.sh     # Build Xpra and AppImage"
-    echo "    /usr/local/bin/check_xpra.sh     # Run post-build checks"
-    echo "    /usr/local/bin/build.sh          # Run the full build pipeline (all steps above)"
+    echo "    build_env.sh      # (Re)initialize Python environment"
+    echo "    fetch_src.sh      # Fetch or update Xpra source (if present)"
+    echo "    build_prereqs.sh  # Install build prerequisites and Python deps"
+    echo "    build_xpra.sh     # Build Xpra and AppImage"
+    echo "    check_xpra.sh     # Run post-build checks"
+    echo "    build.sh          # Run the full build pipeline (all steps above)"
     echo
     echo "Current directory: $(pwd)"
-    echo "Example: /usr/local/bin/build_xpra.sh"
+    echo "Example: build_xpra.sh"
     echo "===================================================================="
     echo
 
