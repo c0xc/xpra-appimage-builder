@@ -276,6 +276,7 @@ fi
 
 # Set up Linuxbrew to install more dependencies if USE_BREW is not explicitly set to 0
 # Note we may install tools like meson here but no libraries yet, see build_prereqs.sh
+# nasm from brew (not pip package) for openh264
 if [ "${USE_BREW:-1}" != "0" ]; then
     echo "[build_env] Setting up Linuxbrew..."
     bash /usr/local/bin/setup_linuxbrew.sh

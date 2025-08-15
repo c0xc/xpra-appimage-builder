@@ -200,11 +200,10 @@ export GST_PREFIX="$GST_PREFIX"
 export PKG_CONFIG_PATH="\$GST_PREFIX/lib64/pkgconfig:\$GST_PREFIX/lib/pkgconfig:\$PKG_CONFIG_PATH"
 export LD_LIBRARY_PATH="\$GST_PREFIX/lib:\$GST_PREFIX/lib64:\$LD_LIBRARY_PATH"
 export PATH="\$GST_PREFIX/bin:\$PATH"
-export GI_TYPELIB_PATH="\$GST_PREFIX/lib/girepository-1.0:\$GI_TYPELIB_PATH"
+export GI_TYPELIB_PATH="\$GST_PREFIX/lib64/girepository-1.0:\$GST_PREFIX/lib/girepository-1.0:\$GI_TYPELIB_PATH"
 export GST_PLUGIN_PATH="\$GST_PREFIX/lib/gstreamer-1.0"
 export PYTHONPATH="\$GST_PREFIX/lib/python$PYTHON_VERSION/site-packages:\$PYTHONPATH"
 EOF
-chmod +x $GST_PREFIX/setup-gst-env.sh
+source $GST_PREFIX/setup-gst-env.sh
 
 echo "[build_gstreamer] Done building minimal GStreamer stack in $GST_PREFIX"
-echo "Use 'source $GST_PREFIX/setup-gst-env.sh' to set up the environment"

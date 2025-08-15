@@ -121,6 +121,8 @@ RUN if ! command -v nvcc >/dev/null 2>&1; then echo 'export PATH="/usr/local/cud
 
 # GStreamer build dependencies (only those available in CentOS repos)
 RUN dnf -y install flex bison json-glib-devel libcap-devel alsa-lib-devel pulseaudio-libs-devel libogg-devel libvorbis-devel libwebp-devel opus-devel
+RUN dnf -y install libxml2-devel
+RUN dnf -y install libva-devel
 
 # Install xxhash from source (not available in CentOS 8 repos)
 RUN cd /tmp && \
