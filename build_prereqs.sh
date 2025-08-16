@@ -80,5 +80,15 @@ else
     fi
 fi
 
+# PyCuda (if CUDA is installed)
+if command -v nvcc >/dev/null 2>&1; then
+    echo "[build_prereqs] Building PyCuda..."
+    if ! pip show pycuda >/dev/null 2>&1; then
+        pip install pycuda || { echo "[build_prereqs] ERROR: Failed to install PyCuda"; exit 1; }
+    else
+        echo "[build_prereqs] PyCuda already installed, skipping."
+    fi
+fi
+
 echo "[build_prereqs] Done."
 popd

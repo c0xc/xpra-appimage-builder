@@ -2,6 +2,12 @@
 
 > This repository provides an unofficial AppImage build of Xpra.
 
+## Motivation: Why AppImage?
+
+AppImage is used here to provide a portable, self-contained binary for Xpra on Linux distributions where official packages are missing or outdated. While installing from source via pip is possible, it requires many system libraries and sometimes a newer Python version, making it non-trivial and not easily repeatable. AppImage solves this by bundling everything needed in one go, despite known drawbacks like bundling too much and lacking update mechanisms.
+
+Snap is not supported due to concerns about its distributor (Canonical) and its tracking of usage data.
+
 **Disclaimer**
 
 This builder was created for a private project with specific requirements. As such, not all features of Xpra are included or supported - completeness was not the primary goal. This repository is unofficial and is explicitly not intended as a replacement for the official Xpra downloads, which should be preferred for general use:
