@@ -199,6 +199,18 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
         fi
         echo "[build_env] gobject-introspection built and environment variables set."
 
+        # TODO Fix GLib error which sometimes happens, didn't have time to investigate
+        # call check_gst_codecs.py fails, but build works fine
+        # After building gobject-introspection, always check if GObject-2.0.typelib and GLib-2.0.typelib are present in $DEPS_PREFIX/lib64/girepository-1.0
+        # Example checks:
+        #   ls -l $DEPS_PREFIX/lib64/girepository-1.0 | grep GObject
+        #   find /opt/build -name '*.typelib' | grep GObject
+        # If missing, inspect build logs for errors or missing dependencies (especially GLib introspection support).
+        # You may need to manually copy .typelib files from the builddir/gir/ directory to $DEPS_PREFIX/lib64/girepository-1.0.
+        # See commented workaround in build_env.sh for details.
+        # Also verify GLib was built with --enable-introspection=yes and is new enough.
+        # This is required for Python gi.repository imports to work.
+
         # Sometimes GLib-2.0.typelib is not installed automatically
         # This is a workaround to ensure it is installed
         # [142/149] /tmp/gi_build/gobject-introspection-1.84.0/builddir/tools/g-ir-compiler -o gir/GLib-2.0.typelib gir/GLib-2.0.gir --includedir /tmp/gi_build/gobject-introspection-1.84.0/builddir/gir --includedir /tmp/gi_build/gobject-introspection-1.84.0/gir
