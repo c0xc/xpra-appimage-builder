@@ -242,9 +242,13 @@ export PKG_CONFIG_PATH="\$GST_PREFIX/lib64/pkgconfig:\$GST_PREFIX/lib/pkgconfig:
 export LD_LIBRARY_PATH="\$GST_PREFIX/lib:\$GST_PREFIX/lib64:\$LD_LIBRARY_PATH"
 export PATH="\$GST_PREFIX/bin:\$PATH"
 export GI_TYPELIB_PATH="\$GST_PREFIX/lib64/girepository-1.0:\$GST_PREFIX/lib/girepository-1.0:\$GI_TYPELIB_PATH"
-export GST_PLUGIN_PATH="\$GST_PREFIX/lib/gstreamer-1.0"
+export GST_PLUGIN_PATH="\$GST_PREFIX/lib64/gstreamer-1.0"
 export PYTHONPATH="\$GST_PREFIX/lib/python$PYTHON_VERSION/site-packages:\$PYTHONPATH"
 EOF
 source $GST_PREFIX/setup-gst-env.sh
+
+# Run check script to verify GStreamer installation and print available plugins/codecs
+# Expect failure and flying pumpkins if GLib and gobject-introspection at 1.78 (see PyGObject etc.)
+check_gst_codecs.py
 
 echo "[build_gstreamer] Done building GStreamer in $GST_PREFIX"

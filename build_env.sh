@@ -7,6 +7,23 @@
 # No [pre-built] libraries are installed here, as this is still
 # part of the Podman image build process, that decision is made later.
 
+# Base env, build dir, common prefix for dependencies built from source
+BUILD_DIR="/tmp/build"
+mkdir -p "$BUILD_DIR"
+DEPS_PREFIX="/opt/dep" # set here because build_env runs before container_init.sh
+echo "[build_env] Setting up dependencies prefix: $DEPS_PREFIX"
+mkdir -p "$DEPS_PREFIX"
+
+# Build environment variables, duplicated from container_init.sh (because this runs earlier)
+export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+export LD_LIBRARY_PATH="$DEPS_PREFIX/lib:$DEPS_PREFIX/lib64:$LD_LIBRARY_PATH"
+export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+
+# Use gcc instead of clang
+export CC=gcc
+export CXX=g++
+export GI_HOST_CC=gcc
+
 # Check if jq is available
 if ! command -v jq >/dev/null 2>&1; then
     echo "[build_env] ERROR: jq is required but not found"
@@ -24,7 +41,7 @@ PYTHON_BUILD_DATE="${PYTHON_BUILD_DATE:-$LATEST_RELEASE}"
 echo "[build_env] Using build date: $PYTHON_BUILD_DATE"
 
 # Find the exact Python version if only the series is specified
-# so if 3.10 is specified, find a matching 3.10.x release
+# So if 3.10 is specified, find a matching 3.10.x release
 if [[ "$PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
     echo "[build_env] Finding compatible version for Python $PYTHON_VERSION series..."
 
@@ -126,32 +143,58 @@ pip install pycairo
 # Install meson etc. which we'll need for gobject-introspection
 echo "[build_env] Installing core build tools via uv..."
 pip install meson ninja yasm
-#pip install nasm 
+#pip install nasm # nasm from pip is not sufficient
 
-# Common prefix for dependencies built from source, set in container_init.sh
-DEPS_PREFIX="/opt/dep" # set here because build_env runs before container_init.sh
-echo "[build_env] Setting up dependencies prefix: $DEPS_PREFIX"
-if [ -z "$DEPS_PREFIX" ]; then
-    echo "[build_env] ERROR: DEPS_PREFIX is not set, please set it in container_init.sh"
-    exit 1
-fi
-mkdir -p "$DEPS_PREFIX"
-# Build environment variables, duplicated from container_init.sh # TODO
-export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
-export LD_LIBRARY_PATH="$DEPS_PREFIX/lib:$DEPS_PREFIX/lib64:$LD_LIBRARY_PATH"
-export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+# WARNING:
+# I'm building gobject-introspection and, to fix errors when running
+# check_gst-codecs in the build container, I'm now trying to also build glib.
+# Observation: these two appear to have circular dependencies.
+#
+# gobject-introspection seems to depend on glib being installed because,
+# without it, the build printed:
+#   Dependency glib-2.0 found: NO. Found 2.78.0 but need: '>=2.82.0'
+# Even though it then continued to build the glib subproject, the file
+#   /opt/dep/lib64/girepository-1.0/GObject-2.0.typelib
+# was missing at the end, causing the error.
+#
+# However, when I try to build glib earlier to address that, the build prints:
+#   Run-time dependency gobject-introspection-1.0 found: YES 1.84.0
+#   Dependency gobject-introspection-1.0 found: YES 1.84.0 (cached)
+#   Program /opt/dep/bin/g-ir-scanner found: YES (/opt/dep/bin/g-ir-scanner)
+# indicating it might not build before gobject-introspection.
 
-# Use gcc instead of clang
-export CC=gcc
-export CXX=g++
-export GI_HOST_CC=gcc
+# Starting with GLib 2.79.0 and gobject-introspection 1.79.0, there is a circular dependency between the two projects.
+# https://discourse.gnome.org/t/dealing-with-glib-and-gobject-introspection-circular-dependency/18701
+# => Let's build 2.78 and 1.78 max
+# Build GLib with introspection support
+build_glib() {
+    local glib_version="${1:-2.78.0}"
+    echo "[build_env] Building GLib $glib_version with introspection support..."
+    pushd "$BUILD_DIR"
+    wget -nc https://download.gnome.org/sources/glib/${glib_version%.*}/glib-$glib_version.tar.xz
+    tar xf glib-$glib_version.tar.xz
+    pushd glib-$glib_version
+    meson setup --wipe builddir --prefix="$DEPS_PREFIX" \
+        -Dtests=false \
+        -Dselinux=disabled && \
+    ninja -C builddir && \
+    ninja -C builddir install
+    rc=$?
+    popd
+    popd
+    if [ $rc -ne 0 ]; then
+        echo "[build_env] ERROR: Failed to build GLib"
+        exit $rc
+    fi
+    echo "[build_env] GLib $glib_version built and installed to $DEPS_PREFIX"
+}
 
 # Check for girepository-2.0, build it unless USE_BREW_HEADERS_LIBS=1 (installing via brew)
 if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     # Build PCRE2, required for gobject-introspection
     PCRE2_VERSION="10.42"
-    mkdir -p /tmp/pcre2_build && pushd /tmp/pcre2_build
-    wget https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.gz
+    pushd "$BUILD_DIR"
+    wget -nc https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.gz
     tar xf pcre2-$PCRE2_VERSION.tar.gz
     cd pcre2-$PCRE2_VERSION
     #./configure --prefix=/opt/pcre2
@@ -166,91 +209,102 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     fi
     echo "[build_env] PCRE2 $PCRE2_VERSION built and installed to $DEPS_PREFIX"
 
+    # We build GLib twice to break the historical GLib ↔ gobject‑introspection bootstrap loop.
+
+    # Build GLib (required for gobject-introspection)
+    # 1st GLib build (introspection disabled):
+    #   Purpose: Provide the GLib headers, pkg‑config files, and core shared libs
+    #   (libglib-2.0.so, libgobject-2.0.so, libgio-2.0.so, etc.) that
+    #   gobject‑introspection needs to compile itself.
+    #   GI’s scanner/compilation tools link to and use these libs at build time.
+    GLIB_VERSION="2.82.0"
+    build_glib "$GLIB_VERSION"
+
+    # IMPORTANT: We intentionally do NOT ship GLib from the toolchain prefix.
+    # Reason: We rely on the target's system GLib to keep the ABI floor low.
+    # Shipping a newer libglib-2.0.so* (or friends) would silently raise the
+    # minimum GLib requirement and can break older targets.
+
     # girepository-2.0 / gobject-introspection
+    # gobject-introspection-1.84.0:
     # Dependency glib-2.0 found: NO. Found 2.56.4 but need: '>=2.82.0'
     # Run-time dependency glib-2.0 found: NO (tried pkgconfig and cmake)
-    if ! pkg-config --exists girepository-2.0; then
-        echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
-        old_wd=$PWD
-        GI_VERSION="1.84"
-        echo "[DEBUG] pkg-config --cflags libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --cflags libpcre2-8 2>&1)"
-        echo "[DEBUG] pkg-config --libs libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --libs libpcre2-8 2>&1)"
-        echo "[build_env] Building gobject-introspection $GI_VERSION..."
-        mkdir -p /tmp/gi_build && cd /tmp/gi_build
-        wget https://download.gnome.org/sources/gobject-introspection/$GI_VERSION/gobject-introspection-$GI_VERSION.0.tar.xz
-        tar xf gobject-introspection-$GI_VERSION.0.tar.xz
-        cd gobject-introspection-$GI_VERSION.0
-        (
-            export CC=gcc CXX=g++ GI_HOST_CC=gcc
-            meson setup --wipe builddir --prefix="$DEPS_PREFIX" && \
-            ninja -C builddir && \
-            ninja -C builddir install
-            # We need GLib-2.0.typelib later but apparently, those options will prevent it from being built:
-            # -Ddoctool=disabled -Dtests=false 
-        )
-        #meson setup builddir --prefix="$DEPS_PREFIX" && \
-        #ninja -C builddir && \
-        #ninja -C builddir install
-        rc=$?
-        [ -n "$old_wd" ] && cd "$old_wd"
-        if [ $rc -ne 0 ]; then
-            echo "[build_env] ERROR: Failed to build gobject-introspection"
-            exit $rc
-        fi
-        echo "[build_env] gobject-introspection built and environment variables set."
+    # gobject-introspection-1.78.0 + GLib-2.78.0:
+    # Run-time dependency glib-2.0 found: YES 2.78.0
+    # Bug: ModuleNotFoundError: No module named 'distutils.msvccompiler'
+    echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
+    GI_VERSION="1.78"
+    GI_VERSION="1.82"
+    echo "[DEBUG] pkg-config --cflags libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --cflags libpcre2-8 2>&1)"
+    echo "[DEBUG] pkg-config --libs libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --libs libpcre2-8 2>&1)"
+    echo "[build_env] Building gobject-introspection $GI_VERSION..."
+    pushd "$BUILD_DIR"
+    wget -nc https://download.gnome.org/sources/gobject-introspection/$GI_VERSION/gobject-introspection-$GI_VERSION.0.tar.xz
+    tar xf gobject-introspection-$GI_VERSION.0.tar.xz
+    pushd gobject-introspection-$GI_VERSION.0
+    # Bug: ModuleNotFoundError: No module named 'distutils.msvccompiler'
+    # Apply MSVC bugfix patch for gobject-introspection < 1.82
+    if [ "$(printf '%s\n' "$GI_VERSION" "1.82" | sort -V | head -n1)" = "$GI_VERSION" ]; then
+        echo "[build_env] Applying gi-178-fix-msvc-bug.patch to giscanner/ccompiler.py..."
+        patch -p0 -N < /var/tmp/gi-178-fix-msvc-bug.patch
+    fi
+    # cc1: warning: /install/include/python3.10: No such file or directory [-Wmissing-include-dirs]
+    # => PKG_CONFIG_PATH
+    (
+        export CC=gcc CXX=g++ GI_HOST_CC=gcc
+        export PKG_CONFIG_PATH=/opt/dep/lib64/pkgconfig:/opt/dep/lib/pkgconfig
+        meson setup --wipe builddir --prefix="$DEPS_PREFIX" && \
+        ninja -C builddir && \
+        ninja -C builddir install
+    )
+    rc=$?
+    popd
+    popd
+    if [ $rc -ne 0 ]; then
+        echo "[build_env] ERROR: Failed to build gobject-introspection"
+        exit $rc
+    fi
+    echo "[build_env] gobject-introspection built and environment variables set."
 
-        # TODO Fix GLib error which sometimes happens, didn't have time to investigate
-        # call check_gst_codecs.py fails, but build works fine
-        # After building gobject-introspection, always check if GObject-2.0.typelib and GLib-2.0.typelib are present in $DEPS_PREFIX/lib64/girepository-1.0
-        # Example checks:
-        #   ls -l $DEPS_PREFIX/lib64/girepository-1.0 | grep GObject
-        #   find /opt/build -name '*.typelib' | grep GObject
-        # If missing, inspect build logs for errors or missing dependencies (especially GLib introspection support).
-        # You may need to manually copy .typelib files from the builddir/gir/ directory to $DEPS_PREFIX/lib64/girepository-1.0.
-        # See commented workaround in build_env.sh for details.
-        # Also verify GLib was built with --enable-introspection=yes and is new enough.
-        # This is required for Python gi.repository imports to work.
+    # Install Python module - requires gobject-introspection to be built first
+    # ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
+    echo "[build_env] Installing pygobject"
+    pip install pygobject
+    if [ $? -ne 0 ]; then
+        echo "[build_env] ERROR: Failed to install pygobject"
+        exit 1
+    fi
 
-        # Sometimes GLib-2.0.typelib is not installed automatically
-        # This is a workaround to ensure it is installed
-        # [142/149] /tmp/gi_build/gobject-introspection-1.84.0/builddir/tools/g-ir-compiler -o gir/GLib-2.0.typelib gir/GLib-2.0.gir --includedir /tmp/gi_build/gobject-introspection-1.84.0/builddir/gir --includedir /tmp/gi_build/gobject-introspection-1.84.0/gir
-        #echo "[build_env] Manually installing typelib files..."
-        ## Make sure we have a directory to install them to
-        #mkdir -p "$DEPS_PREFIX/lib64/girepository-1.0/"
-        #cd /tmp/gi_build/gobject-introspection-1.84.0
-        ## Copy all the generated .typelib files to our prefix
-        #echo "[build_env] Copying typelib files from builddir/gir/ to $DEPS_PREFIX/lib/girepository-1.0/"
-        #find builddir/gir/ -name "*.typelib" -exec cp {} "$DEPS_PREFIX/lib/girepository-1.0/" \;
-        #cd "$old_wd"
-        #echo "[build_env] Installed typelib files:"
-        #find "$DEPS_PREFIX/lib/girepository-1.0/" -name "*.typelib" | sort
+    # 2nd GLib build (introspection enabled):
+    #   Purpose: Generate and install GLib’s own introspection data
+    #   (.gir XML and .typelib binaries for GLib-2.0, GObject-2.0, Gio-2.0)
+    #   using g-ir-scanner / g-ir-compiler from the just‑built gobject‑introspection.
+    #   Without this rebuild, those typelibs would be missing.
+    #build_glib
+    build_glib "$GLIB_VERSION"
 
-        # Install Python module - requires gobject-introspection to be built first
-        # ../meson.build:31:9: ERROR: Dependency 'girepository-2.0' is required but not found.
-        echo "[build_env] Installing pygobject"
-        pip install pygobject
-        if [ $? -ne 0 ]; then
-            echo "[build_env] ERROR: Failed to install pygobject"
-            exit 1
-        fi
-
+    # After second GLib build, verify GObject-2.0.typelib exists
+    if [ ! -f "$DEPS_PREFIX/lib64/girepository-1.0/GObject-2.0.typelib" ]; then
+        echo "[build_env] WARNING: GObject-2.0.typelib is missing after GLib rebuild!"
+        echo "[build_env] This may prevent Python GObject introspection and GStreamer plugin detection."
+        echo "[build_env] Check your build logs and ensure gobject-introspection tools are available during GLib build."
+        exit 1
     fi
 
     # Build pycairo to provide py3cairo
+    # fails (pkg-config) if GI/GLib is 1.78
     if ! pkg-config --exists py3cairo; then
         echo "[build_env] py3cairo not found, building pycairo..."
-        old_wd=$PWD
         PYCAIRO_VERSION="1.24.0"
-        mkdir -p /tmp/pycairo_build
-        cd /tmp/pycairo_build
-        wget https://github.com/pygobject/pycairo/releases/download/v$PYCAIRO_VERSION/pycairo-$PYCAIRO_VERSION.tar.gz
+        pushd "$BUILD_DIR"
+        wget -nc https://github.com/pygobject/pycairo/releases/download/v$PYCAIRO_VERSION/pycairo-$PYCAIRO_VERSION.tar.gz
         tar xf pycairo-$PYCAIRO_VERSION.tar.gz
         cd pycairo-$PYCAIRO_VERSION
         meson setup builddir --prefix="$DEPS_PREFIX" && \
         ninja -C builddir && \
         ninja -C builddir install
         rc=$?
-        [ -n "$old_wd" ] && cd "$old_wd"
+        popd
         if [ $rc -ne 0 ]; then
             echo "[build_env] ERROR: Failed to build pycairo"
             exit $rc
@@ -263,25 +317,21 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     # Build PyGObject to provide pygobject-3.0.pc for build-time integration
     if ! pkg-config --exists pygobject-3.0; then
         echo "[build_env] pygobject-3.0.pc not found, building PyGObject from source..."
-        old_wd=$PWD
         PYGOBJECT_VERSION="3.46.0"
-        mkdir -p /tmp/pygobject_build
-        cd /tmp/pygobject_build
-        wget https://download.gnome.org/sources/pygobject/${PYGOBJECT_VERSION%.*}/pygobject-$PYGOBJECT_VERSION.tar.xz
+        pushd "$BUILD_DIR"
+        wget -nc https://download.gnome.org/sources/pygobject/${PYGOBJECT_VERSION%.*}/pygobject-$PYGOBJECT_VERSION.tar.xz
         tar xf pygobject-$PYGOBJECT_VERSION.tar.xz
         cd pygobject-$PYGOBJECT_VERSION
         meson setup builddir --prefix="$DEPS_PREFIX" -Dtests=false && \
         ninja -C builddir && \
         ninja -C builddir install
         rc=$?
-        [ -n "$old_wd" ] && cd "$old_wd"
+        popd
         if [ $rc -ne 0 ]; then
             echo "[build_env] ERROR: Failed to build PyGObject"
             exit $rc
         fi
         echo "[build_env] PyGObject built and installed to $DEPS_PREFIX"
-        # Ensure PKG_CONFIG_PATH includes the new .pc file
-        #export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib6
     fi
 
 fi
@@ -305,7 +355,7 @@ else
     echo "[build_env] USE_BREW=0, skipping Homebrew setup."
 fi
 
-# Careful with libs from Brew
+# Careful with libs from Brew:
 # (pyenv) /usr/bin/xz --version
 # xz (XZ Utils) 5.2.4
 # liblzma 5.2.4

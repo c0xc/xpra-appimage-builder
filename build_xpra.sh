@@ -188,6 +188,7 @@ copy_dep_files() {
 
 # Copy libraries
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
+    # Copying Linuxbrew libraries into AppDir - not fully tested, should not be used by default
     echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Linuxbrew libraries into AppDir..."
     BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
     APPDIR_LIB="$APPDIR/usr/lib"
@@ -417,6 +418,14 @@ else
     # Copy libopenh264.so.8 from self-built dependencies to AppImage
     copy_dep_files "$DEPS_PREFIX/lib64" "libopenh264.so.8*" "$APPDIR/usr/lib64"
     copy_dep_files "$DEPS_PREFIX/lib" "libopenh264.so.8*" "$APPDIR/usr/lib"
+
+    # GLib may have been built as part of this process but a newer GLib should not be shipped
+    # GLib should not be part of the AppImage to keep it portable
+    # Abort if a GLib .so made it into the bundle by accident
+    for f in $(find "$APPDIR/usr/lib" "$APPDIR/usr/lib64" -maxdepth 1 -type f -name 'libg*-2.0.so*' 2>/dev/null); do
+        echo "ERROR: GLib library found in bundle: $f"
+        #exit 1 # TODO figure out how much this breaks and how to fix it ... without breaking 3 other things, see build_env
+    done
 
 fi
 

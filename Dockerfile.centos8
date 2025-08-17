@@ -32,7 +32,7 @@ RUN dnf -y install \
     libjpeg-turbo-devel libpng-devel libwebp-devel \
     opus-devel openssl-devel lz4-devel nss-devel \
     wget fuse squashfs-tools desktop-file-utils ImageMagick ImageMagick-devel \
-    jq cmake diffutils
+    jq cmake diffutils patch
 
 # Install clang from repository (if missing, llvm from Linuxbrew will be used)
 # Install clang from repository even though it's old (see build_env.sh)
@@ -179,7 +179,7 @@ ARG CACHE_BUST=1
 RUN echo "Cache busting at $(date +%s) with value: $CACHE_BUST"
 
 # Copy all scripts, archives, and requirements.txt
-COPY *.sh *.py *.zip *.tar.* requirements.txt /var/tmp/
+COPY *.sh *.py *.zip *.tar.* requirements.txt *.patch /var/tmp/
 COPY *.sh *.py /usr/local/bin/
 # Copy only scripts to /usr/local/bin and set executable
 RUN cp -vf /var/tmp/*.sh /usr/local/bin/ && chmod +x /usr/local/bin/*.sh
