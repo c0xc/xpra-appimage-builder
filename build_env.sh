@@ -201,6 +201,7 @@ build_glib() {
 
 # Check for girepository-2.0, build it unless USE_BREW_HEADERS_LIBS=1 (installing via brew)
 if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
+
     # Build PCRE2, required for gobject-introspection
     PCRE2_VERSION="10.42"
     pushd "$BUILD_DIR"
@@ -218,7 +219,19 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     fi
     echo "[build_env] PCRE2 $PCRE2_VERSION built and installed to $DEPS_PREFIX"
 
+    # Version of GI (gobject-introspection) + GLib
     # We build GLib twice to break the historical GLib ↔ gobject‑introspection bootstrap loop.
+    GI_VERSION="1.78"
+    GI_VERSION="1.82"
+    GI_VERSION="1.64"
+    GI_VERSION="1.56"
+    GI_VERSION_MINOR="${GI_VERSION#*.}"
+    GI_VERSION_MICRO="1"
+    GLIB_VERSION="2.82.0"
+    GLIB_VERSION="2.64.0"
+    GLIB_VERSION="2.56.0"
+    OS_GLIB_VERSION="$(pkg-config --modversion glib-2.0 2>/dev/null)"
+    OS_GLIB_MINOR="$(echo "$OS_GLIB_VERSION" | cut -d. -f2)"
 
     # Build GLib (required for gobject-introspection)
     # 1st GLib build (introspection disabled):
@@ -226,41 +239,34 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     #   (libglib-2.0.so, libgobject-2.0.so, libgio-2.0.so, etc.) that
     #   gobject‑introspection needs to compile itself.
     #   GI’s scanner/compilation tools link to and use these libs at build time.
-    GLIB_VERSION="2.82.0"
-    GLIB_VERSION="2.64.0"
-    GLIB_VERSION="2.56.0"
-    # build_glib # using GLib from OS, if possible
+    if [ "${GI_VERSION_MINOR:-0}" -gt "${OS_GLIB_MINOR:-0}" ]; then # using GLib from OS, if possible
+        echo "[build_env] GLib $GLIB_VERSION > ${OS_GLIB_VERSION:-0}, building GLib $GLIB_VERSION..."
+    fi
+    if [ "${GI_VERSION_MINOR:-0}" -gt 56 ]; then # 56 hardcoded for now, see patch for GI 1.56
+        build_glib "$GLIB_VERSION"
+    fi
 
     # IMPORTANT: We intentionally do NOT ship GLib from the toolchain prefix.
     # Reason: We rely on the target's system GLib to keep the ABI floor low.
     # Shipping a newer libglib-2.0.so* (or friends) would silently raise the
     # minimum GLib requirement and can break older targets.
 
-    # girepository-2.0 / gobject-introspection
+    # Build gobject-introspection to provide girepository-2.0
     # gobject-introspection-1.84.0:
     # Dependency glib-2.0 found: NO. Found 2.56.4 but need: '>=2.82.0'
-    # Run-time dependency glib-2.0 found: NO (tried pkgconfig and cmake)
     # gobject-introspection-1.78.0 + GLib-2.78.0:
     # Run-time dependency glib-2.0 found: YES 2.78.0
-    # Bug: ModuleNotFoundError: No module named 'distutils.msvccompiler'
     echo "[build_env] girepository-2.0 not found, installing gobject-introspection..."
-    GI_VERSION="1.78"
-    GI_VERSION="1.82"
-    GI_VERSION="1.64" # TODO
-    GI_VERSION="1.56"
-    GI_VERSION_MINOR="${GI_VERSION#*.}"
-    GI_VERSION_SUB="1"
     echo "[DEBUG] pkg-config --cflags libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --cflags libpcre2-8 2>&1)"
     echo "[DEBUG] pkg-config --libs libpcre2-8: $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --libs libpcre2-8 2>&1)"
     echo "[build_env] Building gobject-introspection $GI_VERSION..."
     pushd "$BUILD_DIR"
-    wget -nc https://download.gnome.org/sources/gobject-introspection/$GI_VERSION/gobject-introspection-$GI_VERSION.$GI_VERSION_SUB.tar.xz
-    tar xf gobject-introspection-$GI_VERSION.$GI_VERSION_SUB.tar.xz
-    pushd gobject-introspection-$GI_VERSION.$GI_VERSION_SUB
-    # Bug: ModuleNotFoundError: No module named 'distutils.msvccompiler'
-    # Apply MSVC bugfix patch for gobject-introspection < 1.82
+    wget -nc https://download.gnome.org/sources/gobject-introspection/$GI_VERSION/gobject-introspection-$GI_VERSION.$GI_VERSION_MICRO.tar.xz
+    tar xf gobject-introspection-$GI_VERSION.$GI_VERSION_MICRO.tar.xz
+    pushd gobject-introspection-$GI_VERSION.$GI_VERSION_MICRO
+    # Patch gobject-introspection < 1.82 to fix build errors
     if [ "$GI_VERSION_MINOR" -eq 56 ]; then
-        echo "[build_env] Applying gi-156-fix-msvc-bug.patch to giscanner/ccompiler.py..."
+        echo "[build_env] Applying patches for version 56..."
         patch -p0 </var/tmp/gi-156-fix-msvc-bug.patch
         patch -p0 </var/tmp/gi-156-fix-xml-bug.patch
         cp -vf /var/tmp/python-config-wrapper.sh /opt/pyenv/bin/python-config # for configure expecting python-config
@@ -306,7 +312,9 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     #   (.gir XML and .typelib binaries for GLib-2.0, GObject-2.0, Gio-2.0)
     #   using g-ir-scanner / g-ir-compiler from the just‑built gobject‑introspection.
     #   Without this rebuild, those typelibs would be missing.
-    # build_glib # using GLib from OS, if possible
+    if [ "${GI_VERSION_MINOR:-0}" -gt 56 ]; then
+        build_glib "$GLIB_VERSION"
+    fi
 
     # After second GLib build, verify GObject-2.0.typelib exists
     # Usually in lib64, but gobject-introspection 1.56 installs it to lib
@@ -358,6 +366,7 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
             echo "[build_env] ERROR: Failed to build PyGObject"
             exit $rc
         fi
+        pip show pygobject
         echo "[build_env] PyGObject built and installed to $DEPS_PREFIX"
     fi
 
