@@ -12,6 +12,10 @@ export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/gir
 export PATH="$HOME/.local/bin:/opt/python3/bin:$PATH:/tiefkuehlfach"
 # g-ir-scanner needs to be in PATH for gobject-introspection
 export PATH="$DEPS_PREFIX/bin:$PATH"
+# CFLAGS, CPPFLAGS, CXXFLAGS to include headers (also for Python build)
+#export CFLAGS="-I${DEPS_PREFIX}/include $CFLAGS"
+#export CPPFLAGS="-I${DEPS_PREFIX}/include $CPPFLAGS"
+#export CXXFLAGS="-I${DEPS_PREFIX}/include $CXXFLAGS"
 
 # Detect if we are in an interactive shell (for optional silent mode)
 # SILENT_MODE suppresses output in non-interactive shells

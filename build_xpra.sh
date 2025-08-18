@@ -78,6 +78,7 @@ mkdir -p "$BUILD_DIR"
 WHEEL_FILE=$(ls "$BUILD_DIR"/xpra-*.whl 2>/dev/null | head -n1)
 if [ -z "$WHEEL_FILE" ] || [ ! -f "$WHEEL_FILE" ]; then
     echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
+    CFLAGS="-I${DEPS_PREFIX}/include" \
     python -m build --wheel --outdir "$BUILD_DIR"
     WHEEL_FILE=$(ls "$BUILD_DIR"/xpra-*.whl 2>/dev/null | head -n1)
 else
