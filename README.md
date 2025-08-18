@@ -2,6 +2,20 @@
 
 > This repository provides an unofficial AppImage build of Xpra.
 
+## Motivation
+
+The primary motivation for this builder was to make it easy to start and use Xpra for an internal project across several workstations running a variety of Linux desktop distributions.
+On some systems, official Xpra packages do not exist - such as certain Debian-based distros where neither Debian nor Ubuntu packages work.
+Manually building Python and Xpra was a significant, time-consuming effort: Upgrading the OS, installing a newer Python, and repeatedly running the Xpra build only to hit missing development headers, then identifying and installing the required packages (or providing headers another way), and repeating this cycle many times. Eventually, a working Xpra environment could be achieved, but the workstation would be reinstalled and all these many development packages were not meant to remain installed.
+
+Additionally, it was necessary to try different Xpra versions for different scenarios. This builder makes that possible.
+
+### Addressing AppImage/Flatpak Concerns
+
+I am aware of and share many widely cited concerns about AppImages and Flatpaks (e.g., large image files, dependency issues, outdated libraries, etc.). However, when you need to run an application on a Linux distro for which official packages are not available, these concerns are secondary: The AppImage files produced by this builder were used to get Xpra running without installing development packages first.
+
+Notice: None of this is officially supported or recommended. This builder is not intended for production use, and AppImage files released here are not fit for unlimited use of Xpra.
+
 ## Motivation: Why AppImage?
 
 AppImage is used here to provide a portable, self-contained binary for Xpra on Linux distributions where official packages are missing or outdated. While installing from source via pip is possible, it requires many system libraries and sometimes a newer Python version, making it non-trivial and not easily repeatable. AppImage solves this by bundling everything needed in one go, despite known drawbacks like bundling too much and lacking update mechanisms.
