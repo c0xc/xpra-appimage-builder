@@ -133,6 +133,7 @@ fi
 # libspng (for xpra.codecs.spng)
 libspng_url="https://github.com/randy408/libspng.git"
 echo "[build_gstreamer] Cloning libspng from $libspng_url"
+rm -rf libspng-src
 git clone "$libspng_url" libspng-src
 pushd libspng-src
 cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" .
@@ -159,6 +160,7 @@ echo "[build_gstreamer] libva ${LIBVA_VERSION} installed to $GST_PREFIX"
 # libyuv (for csc_libyuv plugin)
 libyuv_url="https://chromium.googlesource.com/libyuv/libyuv"
 echo "[build_gstreamer] Cloning libyuv from $libyuv_url"
+rm -rf libyuv-src
 git clone --branch stable "$libyuv_url" libyuv-src
 pushd libyuv-src
 cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .
