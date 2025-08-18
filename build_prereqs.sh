@@ -98,9 +98,7 @@ if [ "${USE_NVIDIA:-0}" = "1" ]; then
         echo "[build_prereqs] NVIDIA Video Codec SDK found at $NVIDIA_SDK_DIR"
         # Copy headers and libraries
         cp "$NVIDIA_SDK_DIR/Interface/"*.h "$DEPS_PREFIX/include/"
-        cp "$NVIDIA_SDK_DIR/Samples/common/inc/"*.h "$DEPS_PREFIX/include/"
         cp "$NVIDIA_SDK_DIR/Lib/"*.so* "$DEPS_PREFIX/lib64/"
-        cp "$NVIDIA_SDK_DIR/Samples/common/lib/"*.so* "$DEPS_PREFIX/lib64/"
 
         # PyCuda (if CUDA is installed)
         # https://github.com/Xpra-org/xpra/blob/master/docs/Usage/NVENC.md
