@@ -1,0 +1,36 @@
+name: Weekly Xpra AppImage Build
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # every Monday at 06:00 UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build scripts
+        uses: actions/checkout@v4
+      - name: Print env
+        run: |
+          echo "[GH runner]"
+          df -h
+          pwd
+          ls -la
+      - name: Fix workspace permissions
+        run: sudo chmod 777 ${{ github.workspace }}
+      - name: Run build script
+        run: |
+          docker build -f Dockerfile.centos8 -t xpra-appimg-builder-centos8 .
+          docker run --rm -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
+          df -h
+          pwd
+          ls -la
+          echo "[GH runner] Build complete"
+          ls -ld ${{ github.workspace }}
+          ls -lAh ${{ github.workspace }}/build
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xpra-appimage
+          path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
