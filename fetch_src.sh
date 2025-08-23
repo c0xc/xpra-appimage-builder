@@ -43,6 +43,13 @@ elif ls xpra-*.tar.* 1>/dev/null 2>&1; then
             shopt -u dotglob
         fi
     }
+
+elif [ -n "${REPO_COMMIT:-}" ]; then
+    echo "[fetch_src] Cloning $REPO_URL to $SRC_DIR for commit $REPO_COMMIT"
+    git clone "$REPO_URL" "$SRC_DIR"
+    pushd "$SRC_DIR"
+    git checkout "$REPO_COMMIT"
+    popd
 else
     echo "[fetch_src] Cloning $REPO_URL branch $REPO_BRANCH to $SRC_DIR"
     git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$SRC_DIR"

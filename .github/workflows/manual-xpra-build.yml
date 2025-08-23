@@ -1,0 +1,50 @@
+name: Manual Xpra Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git tag or branch to check out'
+        required: true
+        default: 'master'
+        type: string
+      commit:
+        description: 'Optional commit hash to check out'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build scripts
+        uses: actions/checkout@v4
+      - name: Print env
+        run: |
+          echo "[GH runner]"
+          df -h
+          pwd
+          ls -la
+      - name: Fix workspace permissions
+        run: sudo chmod 777 ${{ github.workspace }}
+
+      - name: Run build script
+        run: |
+          docker build -f Dockerfile.centos8 -t xpra-appimg-builder-centos8 .
+          docker run --rm \
+            -e REPO_BRANCH="${{ github.event.inputs.ref }}" \
+            -e REPO_COMMIT="${{ github.event.inputs.commit }}" \
+            -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
+          df -h
+          pwd
+          ls -la
+          echo "[GH runner] Build complete"
+          ls -ld ${{ github.workspace }}
+          ls -lAh ${{ github.workspace }}/build
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xpra-appimage
+          path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
