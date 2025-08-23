@@ -91,9 +91,12 @@ fi
 # nvidia-video-sdk/Interface/cuviddec.h  nvidia-video-sdk/Interface/nvcuvid.h  nvidia-video-sdk/Interface/nvEncodeAPI.h
 # Libraries:
 # -lnvidia-encode ...
+NVIDIA_SDK_DIR="/opt/nvidia-video-sdk"
+if [ -d "$NVIDIA_SDK_DIR" ]; then
+    USE_NVIDIA=1
+fi
 if [ "${USE_NVIDIA:-0}" = "1" ]; then
     echo "[build_prereqs] USE_NVIDIA=1, installing NVIDIA dependencies..."
-    NVIDIA_SDK_DIR="/opt/nvidia-video-sdk"
     if [ -d "$NVIDIA_SDK_DIR" ]; then
         echo "[build_prereqs] NVIDIA Video Codec SDK found at $NVIDIA_SDK_DIR"
         # Copy headers and libraries
