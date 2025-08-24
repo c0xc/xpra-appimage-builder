@@ -34,3 +34,30 @@ jobs:
         with:
           name: xpra-appimage
           path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+
+      - name: Get week and date
+        id: weekdate
+        run: |
+          echo "week=$(date +%V)" >> $GITHUB_OUTPUT
+          echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: weekly-build-${{ github.run_number }}
+          release_name: "Weekly Xpra Build ${{ steps.weekdate.outputs.week }} [#${{ github.run_number }}] ${{ steps.weekdate.outputs.date }}"
+          draft: false
+          prerelease: true
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+          asset_name: xpra-weekly-${{ github.run_number }}.AppImage
+          asset_content_type: application/octet-stream
