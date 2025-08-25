@@ -1,0 +1,93 @@
+name: Daily Xpra AppImage Build
+
+permissions:
+  contents: write
+  packages: write
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # every day at 06:00 UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build scripts
+        uses: actions/checkout@v4
+      - name: Print env
+        run: |
+          echo "[GH runner]"
+          df -h
+          pwd
+          ls -la
+      - name: Fix workspace permissions
+        run: sudo chmod 777 ${{ github.workspace }}
+      - name: Prepare Docker image (reuse latest or monthly)
+        run: |
+          LATEST_IMAGE="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8:latest"
+          MONTHLY_PREFIX="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8:monthly-"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+          # Try to pull the 'latest' image
+          if docker pull "$LATEST_IMAGE"; then
+            echo "Using cached image: $LATEST_IMAGE"
+          else
+            # Use GitHub API to list monthly tags (requires jq)
+            MONTHLY_TAG=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://ghcr.io/v2/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8/tags/list" \
+              | jq -r '.tags[] | select(startswith("monthly-"))' | sort | tail -n1)
+            if [ -n "$MONTHLY_TAG" ]; then
+              MONTHLY_IMAGE="$MONTHLY_PREFIX$MONTHLY_TAG"
+              if docker pull "$MONTHLY_IMAGE"; then
+                echo "Tagging $MONTHLY_IMAGE as latest"
+                docker tag "$MONTHLY_IMAGE" "$LATEST_IMAGE"
+                echo "Using monthly image as latest: $LATEST_IMAGE"
+              else
+                echo "Building new image: $LATEST_IMAGE"
+                docker build -f Dockerfile.centos8 -t "$LATEST_IMAGE" .
+                docker push "$LATEST_IMAGE"
+              fi
+            else
+              echo "Building new image: $LATEST_IMAGE"
+              docker build -f Dockerfile.centos8 -t "$LATEST_IMAGE" .
+              docker push "$LATEST_IMAGE"
+            fi
+          fi
+      - name: Run build process
+        run: |
+          LATEST_IMAGE="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8:latest"
+          docker run --rm -v ${{ github.workspace }}:/workspace "$LATEST_IMAGE"
+          df -h
+          pwd
+          ls -la
+          echo "[GH runner] Build complete"
+          ls -ld ${{ github.workspace }}
+          ls -lAh ${{ github.workspace }}/build
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xpra-appimage
+          path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+      - name: Get week and date
+        id: weekdate
+        run: |
+          echo "week=$(date +%V)" >> $GITHUB_OUTPUT
+          echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: daily-build-${{ github.run_number }}
+          release_name: "Daily Xpra Build [#${{ github.run_number }}] ${{ steps.weekdate.outputs.date }}"
+          draft: false
+          prerelease: true
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+          asset_name: xpra-daily-${{ github.run_number }}.AppImage
+          asset_content_type: application/octet-stream
