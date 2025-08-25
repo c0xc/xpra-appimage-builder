@@ -13,6 +13,11 @@ on:
         required: false
         default: ''
         type: string
+      create_release:
+        description: 'Create a GitHub release after build'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
   build:
@@ -26,6 +31,7 @@ jobs:
           df -h
           pwd
           ls -la
+          env
       - name: Fix workspace permissions
         run: sudo chmod 777 ${{ github.workspace }}
 
@@ -48,3 +54,32 @@ jobs:
         with:
           name: xpra-appimage
           path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+
+      - name: Get week and date
+        id: weekdate
+        run: |
+          echo "week=$(date +%V)" >> $GITHUB_OUTPUT
+          echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create-release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: weekly-build-${{ github.run_number }}
+          release_name: "Xpra Build ${{ github.event.inputs.ref }}:${{ github.event.inputs.commit }} [#${{ github.run_number }}] ${{ steps.weekdate.outputs.date }}"
+          draft: false
+          prerelease: true
+
+      - name: Upload Release Asset
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+          asset_name: xpra-weekly-${{ github.run_number }}.AppImage
+          asset_content_type: application/octet-stream
