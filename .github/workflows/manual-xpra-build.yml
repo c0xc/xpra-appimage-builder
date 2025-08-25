@@ -35,13 +35,24 @@ jobs:
       - name: Fix workspace permissions
         run: sudo chmod 777 ${{ github.workspace }}
 
+      - name: Prepare Docker image (reuse latest)
+        run: |
+          LATEST_IMAGE="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8:latest"
+          if docker pull "$LATEST_IMAGE"; then
+            echo "Using cached image: $LATEST_IMAGE"
+          else
+            echo "Building new image: $LATEST_IMAGE"
+            docker build -f Dockerfile.centos8 -t "$LATEST_IMAGE" .
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+            docker push "$LATEST_IMAGE"
+          fi
       - name: Run build script
         run: |
-          docker build -f Dockerfile.centos8 -t xpra-appimg-builder-centos8 .
+          LATEST_IMAGE="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8:latest"
           docker run --rm \
             -e REPO_BRANCH="${{ github.event.inputs.ref }}" \
             -e REPO_COMMIT="${{ github.event.inputs.commit }}" \
-            -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
+            -v ${{ github.workspace }}:/workspace "$LATEST_IMAGE"
           df -h
           pwd
           ls -la
