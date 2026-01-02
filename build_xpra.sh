@@ -186,10 +186,100 @@ copy_dep_files() {
         fi
     done
 }
+# Helper
+declare -a syslibs=(
+  "libc.so"
+  "libpthread.so"
+  "libdl.so"
+  "libm.so"
+  "librt.so"
+  "libgcc_s.so"
+  "libstdc++.so"
+  "ld-linux"
+  "libutil.so"
+  "libresolv.so"
+  "libz.so"
+  "libuuid.so"
+  "libX11.so"
+  "libxcb.so"
+  "libXext.so"
+  "libXfixes.so"
+  "libXi.so"
+  "libXrender.so"
+  "libXcursor.so"
+  "libXrandr.so"
+  "libXdamage.so"
+  "libXcomposite.so"
+  "libXinerama.so"
+  "libwayland-"
+  "libsystemd.so"
+  "libdbus-1.so"
+  "libgcrypt.so"
+  "libgpg-error.so"
+  "libgnutls.so"
+  "libnettle.so"
+  "libhogweed.so"
+  "libidn2.so"
+  "libp11-kit.so"
+  "libtasn1.so"
+  "libunistring.so"
+)
+is_syslib() {
+    local f="$1"
+    for bad in "${syslibs[@]}"; do
+        if [[ "$f" == *"$bad"* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Run Python import to check GI import
+redundant_env_src='
+PYTHON_VERSION=${PYTHON_VERSION:-3.10}
+if [ -z "$BASE" ]; then
+    BASE="$(dirname "$(readlink -f "$0")")"
+fi
+
+export VIRTUAL_ENV="$BASE/usr/pyenv"
+export PYTHONPATH="$BASE/usr/python3/lib/python$PYTHON_VERSION/site-packages:$BASE/usr/pyenv/lib/python$PYTHON_VERSION/site-packages"
+export PATH="$VIRTUAL_ENV/bin:$BASE/usr/python3/bin:$BASE/usr/bin:$PATH"
+# GSTREAMER: Set GStreamer paths
+export GST_PLUGIN_PATH="$BASE/usr/lib/gstreamer-1.0:$BASE/usr/lib64/gstreamer-1.0"
+export GI_TYPELIB_PATH="$BASE/usr/lib/girepository-1.0:$BASE/usr/lib64/girepository-1.0:/usr/lib64/girepository-1.0"
+export GST_PLUGIN_SCANNER="$BASE/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+
+# LD_LIBRARY_PATH + Python library paths
+export LD_LIBRARY_PATH="$BASE/usr/lib:$BASE/usr/lib64:$BASE/usr/python3/lib:$LD_LIBRARY_PATH"
+'
+# ---> schnippschnapp env init raus, container init und so...
+gi_so_files=()
+py_line="from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, Gio, Pango, Gst "
+so_cmd="python -c '$py_line' 2>&1"
+#so_cmd="$redundant_env_src"$'\n'"python -c '$py_line' 2>&1"
+set +e
+so_out=$(echo "$so_cmd" | bash)
+rc=$?
+if [ $rc -ne 0 ]; then
+    # Python GI import failed
+    echo "$so_out"
+    exit $rc
+else
+    so_cmd="LD_DEBUG=libs python -c '$py_line' 2>&1"
+    so_cmd="$so_cmd"'| grep "calling init" | sed -E "s/.*init: (.*)/\1/" | sort -u '
+    so_out=$(echo "$so_cmd" | bash)
+    echo "$so_out" >/tmp/gi_so_list
+    while IFS= read -r line; do
+        gi_so_files+=($line)
+    done <<<"$so_out"
+    echo "imported lib files: ${#gi_so_files[@]}"
+fi
+# We now return to our scheduled programming...
 
 # Copy libraries
 if [ "${USE_BREW_HEADERS_LIBS:-0}" = "1" ]; then
     # Copying Linuxbrew libraries into AppDir - not fully tested, should not be used by default
+    # obsooleeeteee...
     echo "[build_xpra] USE_BREW_HEADERS_LIBS=1: bundling Linuxbrew libraries into AppDir..."
     BREW_LIB="/home/linuxbrew/.linuxbrew/lib"
     APPDIR_LIB="$APPDIR/usr/lib"
@@ -380,6 +470,17 @@ else
     # Include self-built dependencies from DEPS_PREFIX
     echo "[build_xpra] Using self-built dependencies from DEPS_PREFIX=$DEPS_PREFIX"
 
+    # Copy GI import dependencies first
+    for file in "${gi_so_files[@]}"; do
+        file_dir="${file%/*}"
+        file="${file##*/}"
+        if is_syslib "$file"; then continue; fi
+        if [[ "$file_dir" == /lib* ]]; then
+            echo "GI LIB: $file" 2>/dev/null || true
+            copy_dep_files "$file_dir" "$file" "$APPDIR/usr/lib64/"
+        fi
+    done
+
     # --- GStreamer: Copy plugin scanner ---
     if [ -f "$DEPS_PREFIX/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
         echo "[build_xpra] Copying GStreamer plugin scanner..."
@@ -428,11 +529,17 @@ else
         #exit 1 # TODO figure out how much this breaks and how to fix it ... without breaking 3 other things, see build_env
     done
 
+    # TODO das machen wir nicht einzeln, siehe GI import gi_so_files
+    #copy_dep_files "/lib64" "libpango*.so*" "$APPDIR/usr/lib64"
+    #copy_dep_files "/lib64" "libgdk_pixbuf-2.0*" "$APPDIR/usr/lib64"
+    #copy_dep_files "/lib64" "libgdk-3*" "$APPDIR/usr/lib64"
+
+
 fi
 
 # AppRun script to launch Xpra using prepared environment
 cp -vf /usr/local/bin/check_gst_codecs.py "$APPDIR/"
-PYTHON_VERSION=$("$HERE/usr/python3/bin/python3" --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)
+# PYTHON_VERSION=$(/opt/pyenv/bin/python3 --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
 

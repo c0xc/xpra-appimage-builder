@@ -7,7 +7,7 @@ export VENV_DIR="/opt/pyenv"
 export DEPS_PREFIX="/opt/dep"
 export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
 export LD_LIBRARY_PATH="$DEPS_PREFIX/lib:$DEPS_PREFIX/lib64:$LD_LIBRARY_PATH"
-export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:$GI_TYPELIB_PATH"
+export GI_TYPELIB_PATH="$DEPS_PREFIX/lib/girepository-1.0:$DEPS_PREFIX/lib64/girepository-1.0:${GI_TYPELIB_PATH:-/usr/lib64/girepository-1.0}"
 # /opt/python3/bin/python3-config needed for meson builds (gobject-introspection)
 export PATH="$HOME/.local/bin:/opt/python3/bin:$PATH:/tiefkuehlfach"
 # g-ir-scanner needs to be in PATH for gobject-introspection
