@@ -1,12 +1,17 @@
 #!/bin/bash
-set -e
-
+# vim: set ts=4 sts=4 sw=4 et:
 # fetch_src.sh: Fetch or extract the Xpra source code into the build workspace
+
+set -e
 
 # Workspace, build directories
 BASE_DIR="/workspace"
 SRC_DIR="$BASE_DIR/src"
-REPO_URL="https://github.com/Xpra-org/xpra.git"
+DEFAULT_REPO_URL="https://github.com/Xpra-org/xpra.git"
+REPO_URL="${XPRA_REPO_URL:-${REPO_URL:-$DEFAULT_REPO_URL}}"
+if [ -n "${USE_FORK:-}" ]; then
+    REPO_URL="${FORK_REPO_URL:-https://github.com/c0xc/xpra.git}"
+fi
 REPO_BRANCH="${REPO_BRANCH:-master}"
 cd "$BASE_DIR"
 mkdir -p "$SRC_DIR"

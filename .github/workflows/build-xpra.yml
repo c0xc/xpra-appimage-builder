@@ -3,8 +3,16 @@ name: Build Xpra AppImage
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to build (default: master)'
+      xpra_repo:
+        description: 'Which Xpra repo to build from'
+        required: true
+        default: 'official'
+        type: choice
+        options:
+          - official
+          - c0xc-fork
+      ref:
+        description: 'Git tag or branch to check out'
         required: false
         default: 'master'
   push:
@@ -29,7 +37,17 @@ jobs:
       - name: Run build script
         run: |
           docker build -f Dockerfile.centos8 -t xpra-appimg-builder-centos8 .
-          docker run --rm -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
+          USE_FORK=false
+          FORK_REPO_URL=""
+          if [ "${{ github.event.inputs.xpra_repo }}" = "c0xc-fork" ]; then
+            USE_FORK=true
+            FORK_REPO_URL="https://github.com/c0xc/xpra.git"
+          fi
+          docker run --rm \
+            -e USE_FORK="$USE_FORK" \
+            -e FORK_REPO_URL="$FORK_REPO_URL" \
+            -e REPO_BRANCH="${{ github.event.inputs.ref }}" \
+            -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
           df -h
           pwd
           ls -la
