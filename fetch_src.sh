@@ -16,6 +16,19 @@ REPO_BRANCH="${REPO_BRANCH:-master}"
 cd "$BASE_DIR"
 mkdir -p "$SRC_DIR"
 
+# If the source directory already contains files, skip unpack/clone
+# unless REUNPACK_SOURCES is set (any non-empty value forces re-unpack).
+if [ -d "$SRC_DIR" ] && [ -n "$(ls -A "$SRC_DIR" 2>/dev/null)" ]; then
+    if [ -z "${REUNPACK_SOURCES:-}" ]; then
+        echo "[fetch_src] Detected existing source files in $SRC_DIR; set REUNPACK_SOURCES=1 to force re-unpack"
+        exit 0
+    #else
+    #    echo "[fetch_src] REUNPACK_SOURCES set; forcing re-unpack/clone (clearing $SRC_DIR)"
+    #    rm -rf "$SRC_DIR"/* || true
+    #    mkdir -p "$SRC_DIR"
+    fi
+fi
+
 # Prefer zip archive if present, else tar, else clone
 echo "[fetch_src] Looking for archives in $(pwd):"
 ls -l
@@ -23,7 +36,7 @@ if ls xpra-*.zip 1>/dev/null 2>&1; then
     archive=$(ls xpra-*.zip | head -n1)
     echo "[fetch_src] Extracting $archive to $SRC_DIR"
     unzip "$archive" -d "$SRC_DIR"
-    # Flatten if only one top-level dir
+    # Flatten if only one top-level dir (remove "xpra-master/")
     subdirs=("$SRC_DIR"/*)
     if [ ${#subdirs[@]} -eq 1 ] && [ -d "${subdirs[0]}" ]; then
         echo "[fetch_src] Flattening single top-level directory: ${subdirs[0]}"

@@ -2,11 +2,7 @@
 set -e
 
 echo "==== [1/4] Fetching source ===="
-if [ -x /usr/local/bin/fetch_src.sh ]; then
-    /usr/local/bin/fetch_src.sh
-else
-    echo "[WARN] fetch_src.sh not found or not executable, skipping source fetch."
-fi
+/usr/local/bin/fetch_src.sh
 
 echo "==== [2/4] Installing prerequisites ===="
 /usr/local/bin/build_prereqs.sh
