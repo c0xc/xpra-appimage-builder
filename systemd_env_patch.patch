@@ -1,0 +1,20 @@
+--- a/xpra/scripts/main.py
++++ b/xpra/scripts/main.py
+@@ -186,6 +186,17 @@ def systemd_run_command(mode: str, systemd_run_args="", user: bool = True) -> li
+     if not log_systemd_wrap:
+         cmd.append("--quiet")
+     if systemd_run_args:
+         cmd += shlex.split(systemd_run_args)
++    # Pass XPRA_* environment variables through systemd-run
++    # This is critical for XPRA_PYTHON_EXEC_COMMAND and other settings
++    for key, value in os.environ.items():
++        if key.startswith("XPRA_"):
++            cmd.extend(["--setenv", key + "=" + value])
++    # Also pass PYTHONPATH and LD_LIBRARY_PATH for AppImage compatibility
++    for key in ("PYTHONPATH", "LD_LIBRARY_PATH", "PATH", "GI_TYPELIB_PATH", 
++                "GST_PLUGIN_PATH", "GST_PLUGIN_SCANNER", "VIRTUAL_ENV"):
++        if key in os.environ:
++            cmd.extend(["--setenv", key + "=" + os.environ[key]])
+     return cmd
+ 
+ 

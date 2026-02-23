@@ -73,8 +73,16 @@ fi
 # Start build process
 echo "[build_xpra] === Starting Xpra build process === ___________________________________________________"
 
+# Apply patches before build
+#if [ -f "/usr/local/bin/systemd_env_patch.patch" ]; then
+#    echo "[build_xpra] Applying systemd-run environment patch..."
+#    cd "$SRC_DIR"
+#    patch -p1 < /usr/local/bin/systemd_env_patch.patch || echo "[build_xpra] WARNING: Patch may already been applied"
+#fi
+
 # Build wheel in build dir and install from there
 mkdir -p "$BUILD_DIR"
+cd "$SRC_DIR"
 WHEEL_FILE=$(ls "$BUILD_DIR"/xpra-*.whl 2>/dev/null | head -n1)
 if [ -z "$WHEEL_FILE" ] || [ ! -f "$WHEEL_FILE" ]; then
     echo "[build_xpra] Building Xpra wheel in $BUILD_DIR ..."
@@ -106,6 +114,11 @@ cp -a /opt/python3 "$APPDIR/usr/python3"
 
 # Copy venv from /opt/pyenv
 cp -a /opt/pyenv "$APPDIR/usr/pyenv"
+
+# Install systemd-run wrapper to pass environment variables through systemd-run
+# This ensures XPRA_* and other critical env vars are inherited by systemd-run --scope
+cp -vf /usr/local/bin/systemd-run-wrapper.sh "$APPDIR/usr/bin/systemd-run"
+chmod +x "$APPDIR/usr/bin/systemd-run"
 
 # Patch venv/bin symlinks to avoid dead links
 VENV_BIN="$APPDIR/usr/pyenv/bin"
@@ -556,6 +569,9 @@ export GST_PLUGIN_SCANNER="$HERE/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
 
 # LD_LIBRARY_PATH + Python library paths
 export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib64:$HERE/usr/python3/lib:$LD_LIBRARY_PATH"
+
+# Force xpra to use AppImage-internal Python for subprocess calls (e.g., env sourcing)
+export XPRA_PYTHON_EXEC_COMMAND="$HERE/usr/python3/bin/python$PYTHON_VERSION -c"
 
 # Check for --debug flag first and set XPRA_DEBUG if present
 if [ "$1" = "--debug" ]; then
