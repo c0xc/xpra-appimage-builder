@@ -1,19 +1,18 @@
 #!/bin/bash
 # systemd-run wrapper for AppImage
 # This wrapper ensures environment variables are passed through systemd-run --scope
-# Installed to AppDir/usr/bin/systemd-run during build
+# Installed to AppDir/usr/libexec/xpra/systemd-run during build
 
 # Collect XPRA_* environment variables to pass through
 args=()
-for var in $(env | grep "^XPRA_" | cut -d= -f1); do
-    args+=("--setenv" "$var=${!var}")
-done
+while IFS='=' read -r key value; do
+    [[ "$key" == XPRA_* ]] && args+=("--setenv" "$key=$value")
+done < <(env 2>/dev/null)
 
 # Add critical path variables needed for AppImage runtime
 for var in PYTHONPATH LD_LIBRARY_PATH PATH GI_TYPELIB_PATH GST_PLUGIN_PATH GST_PLUGIN_SCANNER VIRTUAL_ENV; do
-    if [ -n "${!var}" ]; then
-        args+=("--setenv" "$var=${!var}")
-    fi
+    value="${!var}"
+    [[ -n "$value" ]] && args+=("--setenv" "$var=$value")
 done
 
 # Execute real systemd-run with our environment variables

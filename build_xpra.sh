@@ -117,8 +117,10 @@ cp -a /opt/pyenv "$APPDIR/usr/pyenv"
 
 # Install systemd-run wrapper to pass environment variables through systemd-run
 # This ensures XPRA_* and other critical env vars are inherited by systemd-run --scope
-cp -vf /usr/local/bin/systemd-run-wrapper.sh "$APPDIR/usr/bin/systemd-run"
-chmod +x "$APPDIR/usr/bin/systemd-run"
+# Put in libexec to avoid linuxdeploy excluding it as a system binary
+mkdir -p "$APPDIR/usr/libexec/xpra"
+cp -vf /usr/local/bin/systemd-run-wrapper.sh "$APPDIR/usr/libexec/xpra/systemd-run"
+chmod +x "$APPDIR/usr/libexec/xpra/systemd-run"
 
 # Patch venv/bin symlinks to avoid dead links
 VENV_BIN="$APPDIR/usr/pyenv/bin"
@@ -650,6 +652,9 @@ else
 fi
 EOF
 chmod +x "$APPDIR/AppRun"
+
+# Modify AppRun to prepend our libexec to PATH so systemd-run wrapper is found first
+sed -i 's|export PATH="\$VIRTUAL_ENV/bin:\$HERE/usr/python3/bin:\$HERE/usr/bin:\$PATH"|export PATH="$HERE/usr/libexec/xpra:$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$HERE/usr/bin:$PATH"|' "$APPDIR/AppRun"
 
 # Change to $APPIMAGE_DIR to ensure linuxdeploy/appimagetool output goes here
 cd "$APPIMAGE_DIR"
