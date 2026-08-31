@@ -199,6 +199,25 @@ build_glib() {
     echo "[build_env] GLib $glib_version built and installed to $DEPS_PREFIX"
 }
 
+# Set up Linuxbrew to install more dependencies if USE_BREW is not explicitly set to 0
+# Note we may install tools like meson here but no libraries yet, see build_prereqs.sh
+# nasm from brew (not pip package) for openh264
+if [ "${USE_BREW:-1}" != "0" ]; then
+    echo "[build_env] Setting up Linuxbrew..."
+    bash /usr/local/bin/setup_linuxbrew.sh
+    # Install build-time tools and libraries (prebuilt bottles)
+    echo "[setup_brew] Installing build-time tools and libraries via brew..."
+    brew install cmake
+    brew install llvm
+    brew install xxhash
+    brew install lz4
+    brew install yasm
+    brew install nasm
+    brew install diffutils
+else
+    echo "[build_env] USE_BREW=0, skipping Homebrew setup."
+fi
+
 # Check for girepository-2.0, build it unless USE_BREW_HEADERS_LIBS=1 (installing via brew)
 if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
 
@@ -370,25 +389,6 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
         echo "[build_env] PyGObject built and installed to $DEPS_PREFIX"
     fi
 
-fi
-
-# Set up Linuxbrew to install more dependencies if USE_BREW is not explicitly set to 0
-# Note we may install tools like meson here but no libraries yet, see build_prereqs.sh
-# nasm from brew (not pip package) for openh264
-if [ "${USE_BREW:-1}" != "0" ]; then
-    echo "[build_env] Setting up Linuxbrew..."
-    bash /usr/local/bin/setup_linuxbrew.sh
-    # Install build-time tools and libraries (prebuilt bottles)
-    echo "[setup_brew] Installing build-time tools and libraries via brew..."
-    brew install cmake
-    brew install llvm
-    brew install xxhash
-    brew install lz4
-    brew install yasm
-    brew install nasm
-    brew install diffutils
-else
-    echo "[build_env] USE_BREW=0, skipping Homebrew setup."
 fi
 
 # Careful with libs from Brew:
