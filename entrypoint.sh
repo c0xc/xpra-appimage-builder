@@ -22,6 +22,22 @@ fi
 # Activate our build environment
 source /usr/local/bin/container_init.sh
 
+# Check for core build tools (nasm, yasm)
+# Their absence means build_env.sh failed during image creation.
+for tool in nasm yasm; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "[entrypoint] ERROR: build tool missing: $tool" >&2
+        if [ -f /var/log/build_env.log ]; then
+            echo "[entrypoint] build_env.sh log tail:" >&2
+            tail -20 /var/log/build_env.log | sed 's/^/  /' >&2
+        fi
+        if [ "$USE_SHELL" != "true" ]; then
+            exit 1
+        fi
+        break
+    fi
+done
+
 # Run build or shell
 if [ "$USE_SHELL" = "true" ]; then
     echo "Starting interactive shell with build environment..."

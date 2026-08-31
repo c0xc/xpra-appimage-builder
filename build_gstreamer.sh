@@ -121,7 +121,7 @@ if [ -n "$jpeg_version" ]; then
         exit 1
     fi
     mkdir -p build && pushd build
-    cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" -DENABLE_SHARED=1 -DENABLE_STATIC=0 ..
+    cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
     make -j$(nproc)
     make install
     popd
