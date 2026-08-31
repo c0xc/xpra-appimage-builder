@@ -144,6 +144,10 @@ pip install pycairo
 echo "[build_env] Installing core build tools via uv..."
 pip install meson ninja yasm
 #pip install nasm # nasm from pip is not sufficient
+# Install cmake from pip: manylinux2014 wheel, built against glibc 2.17,
+# compatible with CentOS 8 (glibc 2.28). System cmake 3.20.2 is too old
+# for current libavif (needs >= 3.22); brew cmake would need glibc 2.33+.
+pip install cmake
 
 # WARNING:
 # I'm building gobject-introspection and, to fix errors when running
