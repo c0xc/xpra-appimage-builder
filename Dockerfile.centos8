@@ -29,7 +29,11 @@ RUN sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/CentOS-*.re
 RUN dnf -y install 'dnf-command(config-manager)' && dnf config-manager --set-enabled powertools
 RUN dnf -y install epel-release
 
-# Install essential build tools and libraries
+# Install essential build tools and libraries.
+# bzip2/xz/zstd/lz4/unzip/file: standard archive/decompression tools the build
+# scripts shell out to when extracting source tarballs (e.g. libva ships
+# libva-*.tar.bz2). Without bzip2, `tar xf` fails with "bzip2: Cannot exec".
+# Keep the full set present so extraction never fails on a missing tool.
 RUN dnf -y install \
     git python3 python3-pip python3-setuptools python3-wheel python3-devel \
     make gcc gcc-c++ libX11-devel libXtst-devel libXcomposite-devel libXdamage-devel \
@@ -38,7 +42,8 @@ RUN dnf -y install \
     libjpeg-turbo-devel libpng-devel libwebp-devel \
     opus-devel openssl-devel lz4-devel nss-devel \
     wget fuse squashfs-tools desktop-file-utils ImageMagick ImageMagick-devel \
-    jq cmake diffutils patch
+    jq cmake diffutils patch \
+    bzip2 xz zstd lz4 unzip file
 
 # Install clang from repository (if missing, llvm from Linuxbrew will be used)
 # Install clang from repository even though it's old (see build_env.sh)
