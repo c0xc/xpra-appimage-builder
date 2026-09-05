@@ -218,6 +218,18 @@ if [ "${USE_BREW:-1}" != "0" ]; then
     brew install yasm
     brew install nasm
     brew install diffutils
+    # NOTE: brew's ld binary poisons the link path. It is pulled in by brew install
+    # of cmake/llvm (binutils is a transitive dep of brew's gcc/git). brew's ld was
+    # built against newer glibc and embeds the brew Cellar/opt dirs as its default
+    # search libs for NEEDED deps, so it silently links brew's libresolv/libmount/
+    # libz/etc. instead of the CentOS 8 ones. The build error was:
+    #   ld: /home/linuxbrew/.linuxbrew/opt/glibc/lib/libresolv.so.2: undefined
+    #       reference to `dn_skipname@GLIBC_2.34'
+    #   ld: /home/linuxbrew/.linuxbrew/lib/libmount.so.1: undefined reference to
+    #       `fstat@GLIBC_2.33'  (etc, GLIBC_2.34/2.36/2.38 vs host glibc 2.28)
+    # Unlinking binutils keeps the newer brew tools (cmake, clang, ...) first in
+    # PATH while letting gcc's collect2 find the system ld (binutils 2.30).
+    brew unlink binutils 2>/dev/null || true
 else
     echo "[build_env] USE_BREW=0, skipping Homebrew setup."
 fi
