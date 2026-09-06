@@ -50,3 +50,8 @@ else
     $SILENT_MODE || echo "[init] Current system Python: $(which python3 2>/dev/null || echo 'not found')"
 fi
 
+# Source the shared xpra version helper (used by interactive PS1 and build scripts)
+if [ -f /usr/local/bin/xpra-version.sh ]; then
+    source /usr/local/bin/xpra-version.sh
+fi
+

@@ -9,7 +9,7 @@ BASE_DIR="/workspace"
 SRC_DIR="$BASE_DIR/src"
 DEFAULT_REPO_URL="https://github.com/Xpra-org/xpra.git"
 REPO_URL="${XPRA_REPO_URL:-${REPO_URL:-$DEFAULT_REPO_URL}}"
-if [ -n "${USE_FORK:-}" ]; then
+if [ "${USE_FORK:-}" = "true" ]; then
     REPO_URL="${FORK_REPO_URL:-https://github.com/c0xc/xpra.git}"
 fi
 REPO_BRANCH="${REPO_BRANCH:-master}"

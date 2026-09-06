@@ -31,9 +31,7 @@ RUN dnf -y install epel-release
 
 # Install essential build tools and libraries.
 # bzip2/xz/zstd/lz4/unzip/file: standard archive/decompression tools the build
-# scripts shell out to when extracting source tarballs (e.g. libva ships
-# libva-*.tar.bz2). Without bzip2, `tar xf` fails with "bzip2: Cannot exec".
-# Keep the full set present so extraction never fails on a missing tool.
+# scripts shell out to when extracting source tarballs (libva-*.tar.bz2).
 RUN dnf -y install \
     git python3 python3-pip python3-setuptools python3-wheel python3-devel \
     make gcc gcc-c++ libX11-devel libXtst-devel libXcomposite-devel libXdamage-devel \
@@ -159,6 +157,17 @@ RUN echo 'umask 0000' >> /etc/profile.d/umask.sh && chmod +x /etc/profile.d/umas
 # will be owned by a non-existing uid on the host. And if mounted, the container-local dir
 # /workspace which is chowned here will be shadowed by the host's mount point (see run_local.sh).
 RUN useradd -m builder
+# PS1 prompt: host:cwd + version
+RUN cat >> /home/builder/.bashrc <<'EOF'
+if [ -f /usr/local/bin/xpra-version.sh ]; then source /usr/local/bin/xpra-version.sh; fi
+_XPRA_TAG="$(xpra_version 2>/dev/null)"
+_VENV_TAG="${VIRTUAL_ENV_PROMPT% }"
+PS1='\h:\w'
+[ -n "$_XPRA_TAG" ] && PS1="$PS1 $_XPRA_TAG"
+[ -n "$_VENV_TAG" ] && PS1="$PS1 $_VENV_TAG"
+PS1="$PS1"'\$ '
+EOF
+RUN bash -n /home/builder/.bashrc
 RUN mkdir -p /workspace
 RUN chown builder /workspace
 WORKDIR /workspace
