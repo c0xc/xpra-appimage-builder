@@ -1,58 +1,150 @@
-name: Build Xpra AppImage
+name: Xpra AppImage Build
+
+permissions:
+  contents: write
+  packages: write
 
 on:
+  schedule:
+    - cron: '0 6 * * *' # daily at 06:00 UTC; builder image rebuilt once per month
   workflow_dispatch:
     inputs:
       xpra_repo:
         description: 'Which Xpra repo to build from'
-        required: true
+        required: false
         default: 'official'
         type: choice
         options:
           - official
           - c0xc-fork
       ref:
-        description: 'Git tag or branch to check out'
+        description: 'Git branch or tag to check out'
         required: false
         default: 'master'
-  push:
-    branches:
-      - master
-      - test
+        type: string
+      commit:
+        description: 'Optional commit hash; overrides ref'
+        required: false
+        default: ''
+        type: string
+      push_image:
+        description: 'Override PUSH_IMAGE for this run'
+        required: false
+        default: false
+        type: boolean
+      create_release:
+        description: 'Override CREATE_RELEASE for this run'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      USE_FORK: ${{ github.event.inputs.xpra_repo == 'c0xc-fork' }}
+      REPO_URL: ${{ github.event.inputs.xpra_repo == 'c0xc-fork' && (vars.FORK_REPO_URL || 'https://github.com/c0xc/xpra.git') || (vars.DEFAULT_REPO_URL || 'https://github.com/Xpra-org/xpra.git') }}
+      FORK_REPO_URL: ${{ vars.FORK_REPO_URL || 'https://github.com/c0xc/xpra.git' }}
+      REPO_BRANCH: ${{ github.event.inputs.ref || vars.DEFAULT_BRANCH || 'master' }}
+      REPO_COMMIT: ${{ github.event.inputs.commit || '' }}
+      PUSH_IMAGE: ${{ github.event.inputs.push_image || vars.PUSH_IMAGE || 'false' }}
+      CREATE_RELEASE: ${{ github.event.inputs.create_release || vars.CREATE_RELEASE || 'false' }}
+      REUSE_MONTHLY_IMAGE: ${{ vars.REUSE_MONTHLY_IMAGE || 'true' }}
     steps:
       - name: Checkout build scripts
         uses: actions/checkout@v4
-      - name: Print env
+
+      - name: Print resolved build options
         run: |
-          echo "[GH runner]"
-          df -h
-          pwd
-          ls -la
+          echo "USE_FORK=${{ env.USE_FORK }}"
+          echo "REPO_URL=${{ env.REPO_URL }}"
+          echo "REPO_BRANCH=${{ env.REPO_BRANCH }}"
+          echo "REPO_COMMIT=${{ env.REPO_COMMIT }}"
+          echo "PUSH_IMAGE=${{ env.PUSH_IMAGE }}"
+          echo "CREATE_RELEASE=${{ env.CREATE_RELEASE }}"
+          echo "REUSE_MONTHLY_IMAGE=${{ env.REUSE_MONTHLY_IMAGE }}"
+
       - name: Fix workspace permissions
         run: sudo chmod 777 ${{ github.workspace }}
+
+      - name: Prepare Docker image (reuse latest or monthly, else build)
+        id: prepare
+        run: |
+          set -euo pipefail
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8"
+          LATEST_IMAGE="$IMAGE_NAME:latest"
+          THIS_MONTH="$(date +%Y%m)"
+          MONTHLY_IMAGE="$IMAGE_NAME:monthly-$THIS_MONTH"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+
+          image_month () {
+            docker inspect --format '{{.Created}}' "$1" 2>/dev/null \
+              | cut -dT -f1 | tr -d '-' | cut -c1-6
+          }
+
+          reuse_latest=false
+          builder_source="latest"
+          if docker pull "$LATEST_IMAGE"; then
+            if [ "$(image_month "$LATEST_IMAGE")" = "$THIS_MONTH" ]; then
+              reuse_latest=true
+            else
+              echo ":latest is from a previous month; rebuilding"
+            fi
+          elif [ "${{ env.REUSE_MONTHLY_IMAGE }}" = "true" ]; then
+            GHCR_REPO="${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8"
+            GHCR_TOKEN="$(curl -s -u "${{ github.repository_owner }}:${{ secrets.GITHUB_TOKEN }}" \
+              "https://ghcr.io/token?scope=repository:$GHCR_REPO:pull" \
+              | jq -r '.token // empty')" || true
+            if [ -n "$GHCR_TOKEN" ]; then
+              MONTHLY_TAG="$(curl -s -H "Authorization: Bearer $GHCR_TOKEN" \
+                "https://ghcr.io/v2/$GHCR_REPO/tags/list" \
+                | jq -r '(.tags // [])[] | select(startswith("monthly-"))' \
+                | sort | tail -n1)" || true
+              if [ -n "$MONTHLY_TAG" ] && docker pull "$IMAGE_NAME:$MONTHLY_TAG"; then
+                if [ "$(image_month "$IMAGE_NAME:$MONTHLY_TAG")" = "$THIS_MONTH" ]; then
+                  docker tag "$IMAGE_NAME:$MONTHLY_TAG" "$LATEST_IMAGE"
+                  reuse_latest=true
+                  builder_source="$MONTHLY_TAG"
+                fi
+              fi
+            fi
+          fi
+
+          build_fresh=false
+          if [ "$reuse_latest" = "true" ]; then
+            echo "Reusing image: $LATEST_IMAGE"
+          else
+            echo "Building image: $LATEST_IMAGE"
+            docker build -f Dockerfile.centos8 -t "$LATEST_IMAGE" .
+            build_fresh=true
+          fi
+
+          if [ "${{ env.PUSH_IMAGE }}" = "true" ]; then
+            docker push "$LATEST_IMAGE"
+            if [ "$build_fresh" = "true" ] && [ "${{ env.REUSE_MONTHLY_IMAGE }}" = "true" ]; then
+              echo "Tagging and pushing: $MONTHLY_IMAGE"
+              docker tag "$LATEST_IMAGE" "$MONTHLY_IMAGE"
+              docker push "$MONTHLY_IMAGE"
+            fi
+          else
+            echo "PUSH_IMAGE is not true; image stays local on the runner"
+          fi
+
+          BUILDER_ID="$(docker inspect --format '{{.Id}}' "$LATEST_IMAGE" 2>/dev/null | head -c 19 || echo "unknown")"
+          echo "builder_source=$builder_source" >> "$GITHUB_OUTPUT"
+          echo "builder_id=$BUILDER_ID" >> "$GITHUB_OUTPUT"
+
       - name: Run build script
         run: |
-          docker build -f Dockerfile.centos8 -t xpra-appimg-builder-centos8 .
-          USE_FORK=false
-          FORK_REPO_URL=""
-          if [ "${{ github.event.inputs.xpra_repo }}" = "c0xc-fork" ]; then
-            USE_FORK=true
-            FORK_REPO_URL="https://github.com/c0xc/xpra.git"
-          fi
+          LATEST_IMAGE="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8:latest"
           docker run --rm \
-            -e USE_FORK="$USE_FORK" \
-            -e FORK_REPO_URL="$FORK_REPO_URL" \
-            -e REPO_BRANCH="${{ github.event.inputs.ref }}" \
-            -v ${{ github.workspace }}:/workspace xpra-appimg-builder-centos8
-          df -h
-          pwd
-          ls -la
+            -e USE_FORK="${{ env.USE_FORK }}" \
+            -e REPO_URL="${{ env.REPO_URL }}" \
+            -e FORK_REPO_URL="${{ env.FORK_REPO_URL }}" \
+            -e REPO_BRANCH="${{ env.REPO_BRANCH }}" \
+            -e REPO_COMMIT="${{ env.REPO_COMMIT }}" \
+            -v ${{ github.workspace }}:/workspace "$LATEST_IMAGE"
           echo "[GH runner] Build complete"
-          ls -ld ${{ github.workspace }}
           ls -lAh ${{ github.workspace }}/build
 
       - name: Upload AppImage artifact
@@ -60,3 +152,33 @@ jobs:
         with:
           name: xpra-appimage
           path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+
+      - name: Compose release label
+        id: release-label
+        run: |
+          ref="${{ env.REPO_BRANCH }}"
+          commit="${{ env.REPO_COMMIT }}"
+          if [ -n "$commit" ]; then ref="$ref ($commit)"; fi
+          echo "src=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Get week and date
+        id: weekdate
+        run: |
+          echo "date=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        if: env.CREATE_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: xpra-build-${{ github.run_number }}
+          name: "Xpra Build ${{ steps.release-label.outputs.src }} [${{ github.run_number }}] ${{ steps.weekdate.outputs.date }}"
+          body: |
+            Source: ${{ env.REPO_URL }}
+            Branch: ${{ env.REPO_BRANCH }}
+            Commit: ${{ env.REPO_COMMIT || '(latest)' }}
+            Date: ${{ steps.weekdate.outputs.date }}
+            Builder: ${{ steps.prepare.outputs.builder_source }} (${{ steps.prepare.outputs.builder_id }})
+          files: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
+          prerelease: true
+          fail_on_unmatched_files: true
