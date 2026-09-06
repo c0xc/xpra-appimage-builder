@@ -134,8 +134,12 @@ if [ "$USE_SHELL" = "true" ]; then
     else
         echo "Image $IMAGE already exists, skipping build."
     fi
-    echo "Starting interactive shell in $IMAGE container..."
-    podman run -it "${PODMAN_RUN_ARGS[@]}" "$IMAGE" shell || exit $?
+    echo "Starting shell in $IMAGE container..."
+    if [ -t 0 ]; then
+        podman run -it "${PODMAN_RUN_ARGS[@]}" "$IMAGE" shell || exit $?
+    else
+        podman run -i "${PODMAN_RUN_ARGS[@]}" "$IMAGE" shell || exit $?
+    fi
 else
     podman build $NO_CACHE $NO_SCRIPT_CACHE -f "$DOCKERFILE" -t "$IMAGE" . || exit $?
     podman run "${PODMAN_RUN_ARGS[@]}" "$IMAGE" || exit $?

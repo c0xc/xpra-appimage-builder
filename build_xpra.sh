@@ -74,6 +74,9 @@ fi
 echo "[build_xpra] === Starting Xpra build process === ___________________________________________________"
 
 # Apply patches before build
+#if grep -q 'h264,hevc,vp8,vp9,av1' "$SRC_DIR/xpra/codecs/gstreamer/decoder.py"; then
+#    sed -i 's|"h264,hevc,vp8,vp9,av1"|"h264,hevc,vp8,vp9"|' "$SRC_DIR/xpra/codecs/gstreamer/decoder.py"
+#fi
 #if [ -f "/usr/local/bin/systemd_env_patch.patch" ]; then
 #    echo "[build_xpra] Applying systemd-run environment patch..."
 #    cd "$SRC_DIR"
@@ -97,7 +100,7 @@ if [ -z "$WHEEL_FILE" ] || [ ! -f "$WHEEL_FILE" ]; then
     exit 1
 fi
 echo "[build_xpra] Installing Xpra wheel into current Python environment ..."
-pip install "$WHEEL_FILE"
+pip install --force-reinstall "$WHEEL_FILE"
 
 # Create blank AppDir
 APPDIR="$APPIMAGE_DIR/AppDir"

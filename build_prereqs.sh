@@ -21,22 +21,9 @@ else
 fi
 
 # Install dependencies from pyproject.toml
-# Pin PyGObject version if already installed because rebuild after source build fails
-PYGOBJECT_VERSION="$(pip show pygobject 2>/dev/null | awk '/^Version: /{print $2}')"
-if [ -n "$PYGOBJECT_VERSION" ]; then
-    echo "[build_prereqs] Detected PyGObject version $PYGOBJECT_VERSION, pinning in pyproject.toml..."
-    sed -i "s/\"PyGObject\"/\"PyGObject==$PYGOBJECT_VERSION\"/" pyproject.toml
-fi
-if [ -f pyproject.toml ]; then
-    echo "[build_prereqs] Installing dependencies from pyproject.toml using uv..."
-    uv pip install -r <(uv pip compile pyproject.toml)
-else
-    if [ -f requirements.txt ]; then
-        echo "[build_prereqs] Installing dependencies from requirements.txt..."
-        pip install -r requirements.txt
-    else
-        echo "[build_prereqs] No pyproject.toml or requirements.txt found, skipping Python dependency installation."
-    fi
+# xpra's pyproject.toml declares no runtime dependencies
+if [ -f "/var/tmp/requirements.txt" ]; then
+    uv pip install -r /var/tmp/requirements.txt
 fi
 
 # libxxhash
