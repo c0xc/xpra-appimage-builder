@@ -63,7 +63,7 @@ fi
 
 # Only allow known commands
 if [[ ! "$COMMAND" =~ ^(build|shell|clear|help)$ ]]; then
-    echo "Error: Unknown command: $COMMAND"
+    echo "Error: Unknown command: $COMMAND" >&2
     show_help
     exit 1
 fi
@@ -93,13 +93,13 @@ MOUNT_WORKSPACE=${MOUNT_WORKSPACE:-0}
 MOUNT_BUILD=${MOUNT_BUILD:-0}
 PODMAN_RUN_ARGS=(--security-opt label=disable)
 if [ "$MOUNT_WORKSPACE" = "1" ]; then
-    echo "Creating workspace directory: $WORKSPACE_DIR"
+    echo "Creating workspace directory: $WORKSPACE_DIR" >&2
     mkdir -p "$WORKSPACE_DIR"
     chmod o+rwx "$WORKSPACE_DIR" # allow build user to write into mounted workspace
     PODMAN_RUN_ARGS+=( -v "$WORKSPACE_DIR":/workspace:rw,z )
 fi
 if [ "$MOUNT_BUILD" = "1" ]; then
-    echo "Creating temp directory: $WORKSPACE_DIR/build"
+    echo "Creating temp directory: $WORKSPACE_DIR/build" >&2
     mkdir -p "$WORKSPACE_DIR/build"
     chmod -R o+rwx "$WORKSPACE_DIR" # allow build user to write into mounted workspace
     PODMAN_RUN_ARGS+=( -v "$WORKSPACE_DIR/build":/workspace/build )
@@ -119,7 +119,7 @@ fi
 
 # If CLEAN=1, remove the image before running
 if [ "$CLEAN" = "1" ]; then
-    echo "[run_local] CLEAN=1: Forcing image rebuild by removing $IMAGE..."
+    echo "[run_local] CLEAN=1: Forcing image rebuild by removing $IMAGE..." >&2
     podman rmi -f "$IMAGE" 2>/dev/null || true
 fi
 PODMAN_RUN_ARGS+=( -e USE_BREW_HEADERS_LIBS )
@@ -129,12 +129,12 @@ PODMAN_RUN_ARGS+=( -e USE_BREW_HEADERS_LIBS )
 # It activates the environment. If not in shell mode, it runs the build script.
 if [ "$USE_SHELL" = "true" ]; then
     if ! podman image exists "$IMAGE" || [ "$REBUILD" = "1" ]; then
-        echo "Building $IMAGE from $DOCKERFILE..."
+        echo "Building $IMAGE from $DOCKERFILE..." >&2
         podman build $NO_CACHE $NO_SCRIPT_CACHE -f "$DOCKERFILE" -t "$IMAGE" . || exit $?
     else
-        echo "Image $IMAGE already exists, skipping build."
+        echo "Image $IMAGE already exists, skipping build." >&2
     fi
-    echo "Starting shell in $IMAGE container..."
+    echo "Starting shell in $IMAGE container..." >&2
     if [ -t 0 ]; then
         podman run -it "${PODMAN_RUN_ARGS[@]}" "$IMAGE" shell || exit $?
     else
@@ -145,4 +145,3 @@ else
     podman run "${PODMAN_RUN_ARGS[@]}" "$IMAGE" || exit $?
 fi
 
-echo "Done: $WORKSPACE_DIR."
