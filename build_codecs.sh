@@ -18,7 +18,8 @@ if ! pkg-config --exists vpx; then
     wget -q "https://github.com/webmproject/libvpx/archive/v${VPX_VERSION}.tar.gz" -O libvpx-${VPX_VERSION}.tar.gz
     tar xf libvpx-${VPX_VERSION}.tar.gz
     cd libvpx-${VPX_VERSION}
-    ./configure --prefix="$DEPS_PREFIX" --disable-examples --disable-docs --enable-vp9 --enable-shared
+    # --enable-vp9-highbitdepth: VPX_CODEC_INVALID_PARAM
+    ./configure --prefix="$DEPS_PREFIX" --disable-examples --disable-docs --enable-vp9 --enable-vp9-highbitdepth --enable-shared
     make -j$JOBS
     make install
 else

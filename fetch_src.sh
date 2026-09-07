@@ -22,17 +22,18 @@ if [ -d "$SRC_DIR" ] && [ -n "$(ls -A "$SRC_DIR" 2>/dev/null)" ]; then
     if [ -z "${REUNPACK_SOURCES:-}" ]; then
         echo "[fetch_src] Detected existing source files in $SRC_DIR; set REUNPACK_SOURCES=1 to force re-unpack"
         exit 0
-    #else
-    #    echo "[fetch_src] REUNPACK_SOURCES set; forcing re-unpack/clone (clearing $SRC_DIR)"
-    #    rm -rf "$SRC_DIR"/* || true
-    #    mkdir -p "$SRC_DIR"
+    else
+        echo "[fetch_src] REUNPACK_SOURCES set; clearing $SRC_DIR"
+        rm -rf "$SRC_DIR"
+        mkdir -p "$SRC_DIR"
     fi
 fi
 
-# Prefer zip archive if present, else tar, else clone
+# Prefer zip archive if present, else tar, else clone.
+# Set SKIP_ARCHIVES=1 to ignore the zip/tarball
 echo "[fetch_src] Looking for archives in $(pwd):"
 ls -l
-if ls xpra-*.zip 1>/dev/null 2>&1; then
+if [ -z "${SKIP_ARCHIVES:-}" ] && ls xpra-*.zip 1>/dev/null 2>&1; then
     archive=$(ls xpra-*.zip | head -n1)
     echo "[fetch_src] Extracting $archive to $SRC_DIR"
     unzip "$archive" -d "$SRC_DIR"
@@ -45,7 +46,7 @@ if ls xpra-*.zip 1>/dev/null 2>&1; then
         rmdir "${subdirs[0]}"
         shopt -u dotglob
     fi
-elif ls xpra-*.tar.* 1>/dev/null 2>&1; then
+elif [ -z "${SKIP_ARCHIVES:-}" ] && ls xpra-*.tar.* 1>/dev/null 2>&1; then
     archive=$(ls xpra-*.tar.* | head -n1)
     echo "[fetch_src] Extracting $archive to $SRC_DIR"
     tar xf "$archive" -C "$SRC_DIR" --strip-components=1 || {
