@@ -241,6 +241,17 @@ declare -a syslibs=(
   "libp11-kit.so"
   "libtasn1.so"
   "libunistring.so"
+  "libglib-2.0.so"
+  "libgobject-2.0.so"
+  "libgio-2.0.so"
+  "libgmodule-2.0.so"
+  "libselinux.so"
+  "libmount.so"
+  "libblkid.so"
+  "libpcre.so"
+  "libpcre2-"
+  "libgmp.so"
+  "libcap.so"
 )
 is_syslib() {
     local f="$1"
@@ -515,6 +526,13 @@ else
 
     # --- GStreamer: Copy ELF binaries and libraries ---
     echo "[build_xpra] Copying ELF binaries and libraries to AppDir for linuxdeploy dependency detection..."
+    # The usr/lib (and usr/lib64) dirs must exist BEFORE the wholesale copies:
+    # previously the lib copy silently failed (stderr swallowed by
+    # "2>/dev/null || true") because usr/lib did not exist yet, so libraries
+    # that only live in $DEPS_PREFIX/lib and are not needed by anything else
+    # in the bundle (libvpx, libxxhash, libva-*, libyuv, ...) never made it
+    # into the AppImage, breaking vpx/codec support at runtime.
+    mkdir -p "$APPDIR/usr/lib" "$APPDIR/usr/lib64"
     cp -a $DEPS_PREFIX/bin/* "$APPDIR/usr/bin/" 2>/dev/null || true
     cp -a $DEPS_PREFIX/lib/*.so* "$APPDIR/usr/lib/" 2>/dev/null || true
     cp -a $DEPS_PREFIX/lib64/*.so* "$APPDIR/usr/lib64/" 2>/dev/null || true
@@ -539,13 +557,30 @@ else
     copy_dep_files "$DEPS_PREFIX/lib64" "libopenh264.so.8*" "$APPDIR/usr/lib64"
     copy_dep_files "$DEPS_PREFIX/lib" "libopenh264.so.8*" "$APPDIR/usr/lib"
 
-    # GLib may have been built as part of this process but a newer GLib should not be shipped
-    # GLib should not be part of the AppImage to keep it portable
-    # Abort if a GLib .so made it into the bundle by accident
-    for f in $(find "$APPDIR/usr/lib" "$APPDIR/usr/lib64" -maxdepth 1 -type f -name 'libg*-2.0.so*' 2>/dev/null); do
-        echo "ERROR: GLib library found in bundle: $f"
-        #exit 1 # TODO figure out how much this breaks and how to fix it ... without breaking 3 other things, see build_env
-    done
+    # GLib and friends must NOT be bundled: xpra relies on the target's system
+    # GLib to keep the ABI floor low (see "IMPORTANT: We intentionally do NOT
+    # ship GLib" in build_env.sh). Bundling the build container's old system
+    # GLib (CentOS 8: 2.56) shadows the target's newer GLib and makes host
+    # tools fall over with missing/undefined symbols (pango/gvfs: e.g.
+    # g_once_init_leave_pointer; even mkdir/ssh via the bundled libselinux it
+    # drags in). This also applies to the system libraries the old GLib pulls
+    # in (libselinux, libmount, libblkid, libpcre, gnutls family).
+    # Remove any that reached the AppDir via the GI import loop or the
+    # wholesale dependency copy; linuxdeploy is told (--exclude-library) not
+    # to re-add them later.
+    prune_system_libs() {
+        local dir pat
+        for dir in "$APPDIR/usr/lib" "$APPDIR/usr/lib64"; do
+            [ -d "$dir" ] || continue
+            for pat in "${syslibs[@]}"; do
+                while IFS= read -r f; do
+                    echo "[build_xpra] Pruning system lib from bundle: $(basename "$f")"
+                    rm -f "$f"
+                done < <(find "$dir" -maxdepth 1 \( -type f -o -type l \) -name "$pat*" 2>/dev/null)
+            done
+        done
+    }
+    prune_system_libs
 
     # TODO das machen wir nicht einzeln, siehe GI import gi_so_files
     #copy_dep_files "/lib64" "libpango*.so*" "$APPDIR/usr/lib64"
@@ -665,11 +700,53 @@ cd "$APPIMAGE_DIR"
 # Run linuxdeploy to create the AppImage
 # Skip fuse (device not found)
 export APPIMAGE_EXTRACT_AND_RUN=1
+
+# Tell linuxdeploy to never (re-)deploy the system libraries that must stay
+# with the target: GLib family, and the system libs the old bundled GLib
+# would drag in (libselinux, libmount, libblkid, libpcre, gnutls family).
+# Patterns are matched against the library basename (verified empirically:
+# path-style globs such as '*/libglib-2.0.so*' do NOT match, because Go's
+# filepath.Match does not let '*' cross '/'; basename patterns do).
+# Exclusion is soft: linuxdeploy skips the library but still walks and
+# deploys its non-excluded dependency subtree, so list every member of the
+# dependency chain here.
+EXCLUDE_LIBRARY_PATTERNS=(
+    'libglib-2.0.so*'
+    'libgobject-2.0.so*'
+    'libgio-2.0.so*'
+    'libgmodule-2.0.so*'
+    'libselinux.so*'
+    'libmount.so*'
+    'libblkid.so*'
+    'libpcre.so*'
+    'libpcre2-*.so*'
+    'libgmp.so*'
+    'libcap.so*'
+    'libgnutls.so*'
+    'libnettle.so*'
+    'libhogweed.so*'
+    'libidn2.so*'
+    'libp11-kit.so*'
+    'libtasn1.so*'
+    'libunistring.so*'
+)
+EXCLUDE_LD_ARGS=()
+for pat in "${EXCLUDE_LIBRARY_PATTERNS[@]}"; do
+    EXCLUDE_LD_ARGS+=(--exclude-library="$pat")
+done
+
 echo "[build_xpra] [AppImage] Step 3: AppImage packaging"
 "$APPIMAGE_DIR/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" \
     -d "$APPDIR/xpra.desktop" \
     -i "$APPDIR/xpra.png" \
+    "${EXCLUDE_LD_ARGS[@]}" \
     --output appimage
+
+# Belt and braces: remove any system libs linuxdeploy still managed to drop into
+# the AppDir (the .AppImage is already built; this keeps AppDir clean too).
+if type prune_system_libs >/dev/null 2>&1; then
+    prune_system_libs
+fi
 
 # Find the created Xpra AppImage (exclude linuxdeploy-x86_64.AppImage)
 APPIMAGE_FILE=""
