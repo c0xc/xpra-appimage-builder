@@ -43,92 +43,76 @@ export LD_LIBRARY_PATH="$GST_PREFIX/lib:$GST_PREFIX/lib64${LD_LIBRARY_PATH:+:$LD
 # because GStreamer plugins-base depends on them.
 
 # FLAC
-flac_version=$(curl -s https://api.github.com/repos/xiph/flac/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+flac_version=$(curl -sS -m 30 https://api.github.com/repos/xiph/flac/releases/latest | jq -r '.tag_name // empty')
+if [ -z "$flac_version" ]; then
+    echo "[build_gstreamer] ERROR: Could not determine FLAC version from api.github.com"
+    exit 1
+fi
+echo "[build_gstreamer] FLAC version: $flac_version"
 flac_filename="flac-$flac_version.tar.xz"
 flac_url="https://github.com/xiph/flac/releases/download/$flac_version/$flac_filename"
-if [ -n "$flac_version" ]; then
-    echo "[build_gstreamer] Downloading FLAC $flac_version from $flac_url"
-    wget "$flac_url" && \
-    tar xf "$flac_filename" && \
-    pushd "flac-$flac_version"
-    if [ $? -ne 0 ]; then
-        echo "[build_gstreamer] ERROR: Failed to download or extract FLAC $flac_version"
-        exit 1
-    fi
-    ./configure --prefix="$GST_PREFIX" --disable-examples --disable-docs && \
-    make -j$(nproc) && \
-    make install
-    popd
-else
-    echo "[build_gstreamer] ERROR: Could not determine FLAC version from GitHub API"
-fi
+echo "[build_gstreamer] Downloading FLAC $flac_version from $flac_url"
+wget "$flac_url" || { echo "[build_gstreamer] ERROR: Failed to download FLAC $flac_version"; exit 1; }
+tar xf "$flac_filename" && pushd "flac-$flac_version" || { echo "[build_gstreamer] ERROR: Failed to extract FLAC $flac_version"; exit 1; }
+./configure --prefix="$GST_PREFIX" --disable-examples --disable-docs && \
+make -j$(nproc) && \
+make install
+popd
 
 # Vorbis
 vorbis_version=$(curl -s https://xiph.org/downloads/ | grep -oP 'libvorbis-\K[0-9.]+(?=\.tar\.xz)' | sort -V | tail -1)
+if [ -z "$vorbis_version" ]; then
+    echo "[build_gstreamer] ERROR: Could not determine Vorbis version from xiph.org/downloads"
+    exit 1
+fi
+echo "[build_gstreamer] Vorbis version: $vorbis_version"
 vorbis_filename="libvorbis-$vorbis_version.tar.xz"
 vorbis_url="https://downloads.xiph.org/releases/vorbis/$vorbis_filename"
-if [ -n "$vorbis_version" ]; then
-    echo "[build_gstreamer] Downloading Vorbis $vorbis_version from $vorbis_url"
-    wget "$vorbis_url" && \
-    tar xf "$vorbis_filename" && \
-    pushd "libvorbis-$vorbis_version"
-    if [ $? -ne 0 ]; then
-        echo "[build_gstreamer] ERROR: Failed to download or extract Vorbis $vorbis_version"
-        exit 1
-    fi
-    ./configure --prefix="$GST_PREFIX" --disable-examples --disable-docs && \
-    make -j$(nproc) && \
-    make install
-    popd
-else
-    echo "[build_gstreamer] ERROR: Could not determine Vorbis version from GitHub API"
-fi
+echo "[build_gstreamer] Downloading Vorbis $vorbis_version from $vorbis_url"
+wget "$vorbis_url" || { echo "[build_gstreamer] ERROR: Failed to download Vorbis $vorbis_version"; exit 1; }
+tar xf "$vorbis_filename" && pushd "libvorbis-$vorbis_version" || { echo "[build_gstreamer] ERROR: Failed to extract Vorbis $vorbis_version"; exit 1; }
+./configure --prefix="$GST_PREFIX" --disable-examples --disable-docs && \
+make -j$(nproc) && \
+make install
+popd
 
 # openh264
-openh264_version=$(curl -s https://api.github.com/repos/cisco/openh264/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+openh264_version=$(curl -sS -m 30 https://api.github.com/repos/cisco/openh264/releases/latest | jq -r '.tag_name // empty')
+if [ -z "$openh264_version" ]; then
+    echo "[build_gstreamer] ERROR: Could not determine openh264 version from api.github.com"
+    exit 1
+fi
+echo "[build_gstreamer] openh264 version: $openh264_version"
 openh264_filename="openh264-$openh264_version.tar.gz"
 openh264_url="https://github.com/cisco/openh264/archive/refs/tags/$openh264_version.tar.gz"
-if [ -n "$openh264_version" ]; then
-    echo "[build_gstreamer] Downloading openh264 $openh264_version from $openh264_url"
-    mkdir -p "$BUILD_DIR/openh264"
-    pushd "$BUILD_DIR/openh264"
-    wget "$openh264_url" -O "$openh264_filename" && \
-    tar xf "$openh264_filename" && \
-    pushd "openh264-${openh264_version#v}" # remove 'v' prefix
-    if [ $? -ne 0 ]; then
-        echo "[build_gstreamer] ERROR: Failed to download or extract openh264 $openh264_version"
-        exit 1
-    fi
-    make -j$(nproc) && \
-    make install PREFIX="$GST_PREFIX"
-    popd
-    popd
-else
-    echo "[build_gstreamer] ERROR: Could not determine openh264 version from GitHub API"
-fi
+echo "[build_gstreamer] Downloading openh264 $openh264_version from $openh264_url"
+mkdir -p "$BUILD_DIR/openh264"
+pushd "$BUILD_DIR/openh264"
+wget "$openh264_url" -O "$openh264_filename" || { echo "[build_gstreamer] ERROR: Failed to download openh264 $openh264_version"; exit 1; }
+tar xf "$openh264_filename" && pushd "openh264-${openh264_version#v}" || { echo "[build_gstreamer] ERROR: Failed to extract openh264 $openh264_version"; exit 1; }
+make -j$(nproc) && \
+make install PREFIX="$GST_PREFIX"
+popd
+popd
 
 # libjpeg-turbo
-jpeg_version=$(curl -s https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+jpeg_version=$(curl -sS -m 30 https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/releases/latest | jq -r '.tag_name // empty')
+if [ -z "$jpeg_version" ]; then
+    echo "[build_gstreamer] ERROR: Could not determine libjpeg-turbo version from api.github.com"
+    exit 1
+fi
+echo "[build_gstreamer] libjpeg-turbo version: $jpeg_version"
 jpeg_filename="libjpeg-turbo-$jpeg_version.tar.gz"
 jpeg_url="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$jpeg_version.tar.gz"
-if [ -n "$jpeg_version" ]; then
-    echo "[build_gstreamer] Downloading libjpeg-turbo $jpeg_version from $jpeg_url"
-    wget "$jpeg_url" -O "$jpeg_filename" && \
-    tar xf "$jpeg_filename" && \
-    pushd "libjpeg-turbo-${jpeg_version#v}" # Remove 'v' prefix for directory name
-    if [ $? -ne 0 ]; then
-        echo "[build_gstreamer] ERROR: Failed to download or extract libjpeg-turbo $jpeg_version"
-        exit 1
-    fi
-    mkdir -p build && pushd build
-    cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
-    make -j$(nproc)
-    make install
-    popd
-    popd
-else
-    echo "[build_gstreamer] ERROR: Could not determine libjpeg-turbo version from GitHub API"
-fi
+echo "[build_gstreamer] Downloading libjpeg-turbo $jpeg_version from $jpeg_url"
+wget "$jpeg_url" -O "$jpeg_filename" || { echo "[build_gstreamer] ERROR: Failed to download libjpeg-turbo $jpeg_version"; exit 1; }
+tar xf "$jpeg_filename" && pushd "libjpeg-turbo-${jpeg_version#v}" || { echo "[build_gstreamer] ERROR: Failed to extract libjpeg-turbo $jpeg_version"; exit 1; }
+mkdir -p build && pushd build
+cmake -DCMAKE_INSTALL_PREFIX="$GST_PREFIX" -DENABLE_SHARED=1 -DENABLE_STATIC=0 -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
+make -j$(nproc)
+make install
+popd
+popd
 
 # libspng (for xpra.codecs.spng)
 libspng_url="https://github.com/randy408/libspng.git"
@@ -142,9 +126,18 @@ make install
 popd
 
 # libva (Video Acceleration API) >= 1.6
-LIBVA_VERSION=$(curl -s https://api.github.com/repos/intel/libva/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+LIBVA_VERSION=$(curl -sS -m 30 https://api.github.com/repos/intel/libva/releases/latest | jq -r '.tag_name // empty')
+if [ -z "$LIBVA_VERSION" ]; then
+    echo "[build_gstreamer] ERROR: Could not determine libva version from api.github.com"
+    exit 1
+fi
+echo "[build_gstreamer] libva version: $LIBVA_VERSION"
 LIBVA_API_URL="https://api.github.com/repos/intel/libva/releases/tags/${LIBVA_VERSION}"
-LIBVA_ASSET_URL=$(curl -s $LIBVA_API_URL | grep browser_download_url | grep -E 'libva-.*\.tar\.(gz|bz2|xz|Z|lzma|zst)' | head -n1 | cut -d '"' -f 4)
+LIBVA_ASSET_URL=$(curl -sS -m 30 "$LIBVA_API_URL" | jq -r '.assets[]?.browser_download_url' | grep -E 'libva-.*\.tar\.(gz|bz2|xz|Z|lzma|zst)' | head -n1)
+if [ -z "$LIBVA_ASSET_URL" ]; then
+    echo "[build_gstreamer] ERROR: Could not find libva ${LIBVA_VERSION} source tarball in release assets"
+    exit 1
+fi
 LIBVA_TARBALL=$(basename "$LIBVA_ASSET_URL")
 echo "[build_gstreamer] Downloading libva ${LIBVA_VERSION} from $LIBVA_ASSET_URL"
 wget -O "$LIBVA_TARBALL" "$LIBVA_ASSET_URL" || { echo "[build_gstreamer] ERROR: Failed to download libva tarball"; exit 1; }
@@ -175,6 +168,10 @@ popd
 cd $BUILD_DIR
 echo "[build_gstreamer] Finding GStreamer version from branch $GST_BRANCH..."
 GST_VERSION=$(wget -qO- "https://gstreamer.freedesktop.org/src/gstreamer/" | grep -o "gstreamer-$GST_BRANCH\.[0-9]*\.tar.xz" | sort -V | tail -1 | sed "s/gstreamer-//;s/\.tar\.xz//")
+if [ -z "$GST_VERSION" ]; then
+    echo "[build_gstreamer] ERROR: Could not resolve GStreamer $GST_BRANCH version from gstreamer.freedesktop.org"
+    exit 1
+fi
 echo "[build_gstreamer] Found GStreamer version $GST_VERSION"
 
 # Build core GStreamer
