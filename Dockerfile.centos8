@@ -216,7 +216,9 @@ ARG NO_GSTREAMER=
 ENV NO_GSTREAMER=${NO_GSTREAMER}
 
 # Pre-create the Python virtual environment at build time (idempotent)
+RUN touch /var/log/build_env.log && chown builder /var/log/build_env.log
 USER builder
-RUN /usr/local/bin/build_env.sh 2>&1 | tee /var/log/build_env.log; true
+# a failed build_env.sh must fail the image build
+RUN /bin/bash -o pipefail -c '/usr/local/bin/build_env.sh 2>&1 | tee /var/log/build_env.log'
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
