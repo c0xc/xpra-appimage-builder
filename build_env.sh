@@ -31,7 +31,8 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # Set Python version to be installed (can be overridden); OS Python is too old
-PYTHON_VERSION="${PYTHON_VERSION:-3.10}"
+# xpra >= 8.0 requires >= 3.12 (setup.py: check_python_version)
+PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 echo "[build_env] Starting environment preparation for Python $PYTHON_VERSION"
 
 # Find the latest Python build date
@@ -312,9 +313,17 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
     # cc1: warning: /install/include/python3.10: No such file or directory [-Wmissing-include-dirs]
     # => PKG_CONFIG_PATH
     if [ "$GI_VERSION_MINOR" -eq 56 ]; then
+        # giscanner 1.56 does not build on Python 3.12:
+        #   giscanner/giscannermodule.c:68:20: error: lvalue required as left operand of assignment
+        #        Py_TYPE(&type) = &PyType_Type;
+        #        ^
+        # and giscanner/libtoolimporter.py:26 does `import imp`, removed in 3.12.
+        # Build this build-time tool with the distro's platform Python 3.6;
+        # it has no effect on the bundled libraries or their ABI floor.
         CC=gcc CXX=g++ GI_HOST_CC=gcc \
         PKG_CONFIG_PATH=$DEPS_PREFIX/lib64/pkgconfig:$DEPS_PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig \
-        ./configure --prefix="$DEPS_PREFIX" --disable-tests --disable-gtk-doc && \
+        ./configure --prefix="$DEPS_PREFIX" --disable-tests --disable-gtk-doc \
+            --with-python=/usr/libexec/platform-python && \
         make -j4 && \
         make install
     else
@@ -387,6 +396,7 @@ if [ "${USE_BREW_HEADERS_LIBS:-0}" != "1" ]; then
         PYGOBJECT_VERSION="3.46.0"
         PYGOBJECT_VERSION="3.34.0" # error: call to undeclared function '_PyUnicode_AsStringAndSize';
         PYGOBJECT_VERSION="3.40.0" # to remain compatible with gobject-introspection 1.56
+        PYGOBJECT_VERSION="3.44.2" # Python 3.12 support while still accepting GI 1.56 / glib 2.56
         pushd "$BUILD_DIR"
         wget -nc https://download.gnome.org/sources/pygobject/${PYGOBJECT_VERSION%.*}/pygobject-$PYGOBJECT_VERSION.tar.xz
         tar xf pygobject-$PYGOBJECT_VERSION.tar.xz

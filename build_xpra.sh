@@ -265,7 +265,7 @@ is_syslib() {
 
 # Run Python import to check GI import
 redundant_env_src='
-PYTHON_VERSION=${PYTHON_VERSION:-3.10}
+PYTHON_VERSION=${PYTHON_VERSION:-3.12}
 if [ -z "$BASE" ]; then
     BASE="$(dirname "$(readlink -f "$0")")"
 fi
@@ -598,7 +598,8 @@ cat > "$APPDIR/AppRun" <<'EOF'
 
 # Set up environment
 HERE="$(dirname "$(readlink -f "$0")")"
-PYTHON_VERSION=3.10
+# Derive the minor version from the bundled interpreter instead of hardcoding it
+PYTHON_VERSION="$(ls "$HERE"/usr/pyenv/lib | sed -n 's/^python\(3\.[0-9]\+\)$/\1/p' | head -n1)"
 export VIRTUAL_ENV="$HERE/usr/pyenv"
 export PYTHONPATH="$HERE/usr/python3/lib/python$PYTHON_VERSION/site-packages:$HERE/usr/pyenv/lib/python$PYTHON_VERSION/site-packages"
 export PATH="$VIRTUAL_ENV/bin:$HERE/usr/python3/bin:$HERE/usr/bin:$PATH"
