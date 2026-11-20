@@ -79,7 +79,7 @@ if [ -z "$vorbis_version" ]; then
 fi
 echo "[build_gstreamer] Vorbis version: $vorbis_version"
 vorbis_filename="libvorbis-$vorbis_version.tar.xz"
-vorbis_url="https://downloads.xiph.org/releases/vorbis/$vorbis_filename"
+vorbis_url="https://github.com/xiph/vorbis/releases/download/v$vorbis_version/$vorbis_filename"
 echo "[build_gstreamer] Downloading Vorbis $vorbis_version from $vorbis_url"
 wget "$vorbis_url" || { echo "[build_gstreamer] ERROR: Failed to download Vorbis $vorbis_version"; exit 1; }
 tar xf "$vorbis_filename" && pushd "libvorbis-$vorbis_version" || { echo "[build_gstreamer] ERROR: Failed to extract Vorbis $vorbis_version"; exit 1; }

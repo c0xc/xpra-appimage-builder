@@ -52,7 +52,7 @@ jobs:
       REUSE_MONTHLY_IMAGE: ${{ vars.REUSE_MONTHLY_IMAGE || 'true' }}
     steps:
       - name: Checkout build scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Print resolved build options
         run: |
@@ -148,7 +148,7 @@ jobs:
           ls -lAh ${{ github.workspace }}/build
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: xpra-appimage
           path: ${{ github.workspace }}/build/Xpra-x86_64.AppImage
