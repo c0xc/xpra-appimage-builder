@@ -42,12 +42,24 @@ export LD_LIBRARY_PATH="$GST_PREFIX/lib:$GST_PREFIX/lib64${LD_LIBRARY_PATH:+:$LD
 # We need to build FLAC and Vorbis before GStreamer
 # because GStreamer plugins-base depends on them.
 
+# api.github.com allows 60 unauthenticated requests per hour per IP, which
+# aborted the build with:
+#   [build_gstreamer] ERROR: Could not determine FLAC version from api.github.com
+# The releases/latest redirect gives the same tag without that quota.
+latest_tag() {
+    local url
+    url=$(curl -sIL -m 30 -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest") || return 1
+    case "$url" in
+        */releases/tag/*) printf '%s\n' "${url##*/releases/tag/}" ;;
+        *) return 1 ;;
+    esac
+}
+
 # FLAC
-flac_version=$(curl -sS -m 30 https://api.github.com/repos/xiph/flac/releases/latest | jq -r '.tag_name // empty')
-if [ -z "$flac_version" ]; then
-    echo "[build_gstreamer] ERROR: Could not determine FLAC version from api.github.com"
+flac_version=$(latest_tag xiph/flac) || {
+    echo "[build_gstreamer] ERROR: Could not determine FLAC version from github.com"
     exit 1
-fi
+}
 echo "[build_gstreamer] FLAC version: $flac_version"
 flac_filename="flac-$flac_version.tar.xz"
 flac_url="https://github.com/xiph/flac/releases/download/$flac_version/$flac_filename"
@@ -77,11 +89,10 @@ make install
 popd
 
 # openh264
-openh264_version=$(curl -sS -m 30 https://api.github.com/repos/cisco/openh264/releases/latest | jq -r '.tag_name // empty')
-if [ -z "$openh264_version" ]; then
-    echo "[build_gstreamer] ERROR: Could not determine openh264 version from api.github.com"
+openh264_version=$(latest_tag cisco/openh264) || {
+    echo "[build_gstreamer] ERROR: Could not determine openh264 version from github.com"
     exit 1
-fi
+}
 echo "[build_gstreamer] openh264 version: $openh264_version"
 openh264_filename="openh264-$openh264_version.tar.gz"
 openh264_url="https://github.com/cisco/openh264/archive/refs/tags/$openh264_version.tar.gz"
@@ -96,11 +107,10 @@ popd
 popd
 
 # libjpeg-turbo
-jpeg_version=$(curl -sS -m 30 https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/releases/latest | jq -r '.tag_name // empty')
-if [ -z "$jpeg_version" ]; then
-    echo "[build_gstreamer] ERROR: Could not determine libjpeg-turbo version from api.github.com"
+jpeg_version=$(latest_tag libjpeg-turbo/libjpeg-turbo) || {
+    echo "[build_gstreamer] ERROR: Could not determine libjpeg-turbo version from github.com"
     exit 1
-fi
+}
 echo "[build_gstreamer] libjpeg-turbo version: $jpeg_version"
 jpeg_filename="libjpeg-turbo-$jpeg_version.tar.gz"
 jpeg_url="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/$jpeg_version.tar.gz"
@@ -126,16 +136,21 @@ make install
 popd
 
 # libva (Video Acceleration API) >= 1.6
-LIBVA_VERSION=$(curl -sS -m 30 https://api.github.com/repos/intel/libva/releases/latest | jq -r '.tag_name // empty')
-if [ -z "$LIBVA_VERSION" ]; then
-    echo "[build_gstreamer] ERROR: Could not determine libva version from api.github.com"
+LIBVA_VERSION=$(latest_tag intel/libva) || {
+    echo "[build_gstreamer] ERROR: Could not determine libva version from github.com"
     exit 1
-fi
+}
 echo "[build_gstreamer] libva version: $LIBVA_VERSION"
-LIBVA_API_URL="https://api.github.com/repos/intel/libva/releases/tags/${LIBVA_VERSION}"
-LIBVA_ASSET_URL=$(curl -sS -m 30 "$LIBVA_API_URL" | jq -r '.assets[]?.browser_download_url' | grep -E 'libva-.*\.tar\.(gz|bz2|xz|Z|lzma|zst)' | head -n1)
+LIBVA_ASSET_URL=""
+for ext in tar.bz2 tar.gz tar.xz tar.zst; do
+    candidate="https://github.com/intel/libva/releases/download/${LIBVA_VERSION}/libva-${LIBVA_VERSION}.${ext}"
+    if curl -sIL -m 30 -o /dev/null -f "$candidate"; then
+        LIBVA_ASSET_URL="$candidate"
+        break
+    fi
+done
 if [ -z "$LIBVA_ASSET_URL" ]; then
-    echo "[build_gstreamer] ERROR: Could not find libva ${LIBVA_VERSION} source tarball in release assets"
+    echo "[build_gstreamer] ERROR: No libva ${LIBVA_VERSION} source tarball at the github.com release download URL"
     exit 1
 fi
 LIBVA_TARBALL=$(basename "$LIBVA_ASSET_URL")
