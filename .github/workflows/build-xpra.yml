@@ -72,9 +72,12 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/xpra-appimage-builder/xpra-appimg-builder-centos8"
+          IMAGE_NAME_DAILY="ghcr.io/c0xc/xpra-appimage/builder"
           LATEST_IMAGE="$IMAGE_NAME:latest"
+          LATEST_IMAGE_DAILY="$IMAGE_NAME_DAILY:latest"
           THIS_MONTH="$(date +%Y%m)"
           MONTHLY_IMAGE="$IMAGE_NAME:monthly-$THIS_MONTH"
+          MONTHLY_IMAGE_DAILY="$IMAGE_NAME_DAILY:monthly-$THIS_MONTH"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
 
           image_month () {
@@ -121,10 +124,15 @@ jobs:
 
           if [ "${{ env.PUSH_IMAGE }}" = "true" ]; then
             docker push "$LATEST_IMAGE"
+            docker tag "$LATEST_IMAGE" "$LATEST_IMAGE_DAILY"
+            docker push "$LATEST_IMAGE_DAILY"
             if [ "$build_fresh" = "true" ] && [ "${{ env.REUSE_MONTHLY_IMAGE }}" = "true" ]; then
               echo "Tagging and pushing: $MONTHLY_IMAGE"
               docker tag "$LATEST_IMAGE" "$MONTHLY_IMAGE"
               docker push "$MONTHLY_IMAGE"
+              echo "Tagging and pushing: $MONTHLY_IMAGE_DAILY"
+              docker tag "$LATEST_IMAGE" "$MONTHLY_IMAGE_DAILY"
+              docker push "$MONTHLY_IMAGE_DAILY"
             fi
           else
             echo "PUSH_IMAGE is not true; image stays local on the runner"
